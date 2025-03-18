@@ -1,0 +1,7 @@
+digraph G {
+    graph [layout=dot splines=false overlap=scale]
+ {% for windows_host in groups.WINDOWS %}
+    {% set windows_loop = loop %}
+        host{{ '%03d' % windows_loop.index }} [zbx_host="{{ windows_host }}"]
+ {% endfor %}
+}

@@ -1,0 +1,64 @@
+---
+- name: Download SQLExpress 2019 installation files
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SQLEXPR_x64_ENU_2019
+    dest: '{{ win_local_sw_depot }}\SQLEXPR_x64_ENU_2019'
+    flags: /E
+
+# {17DCED0E-5B27-453A-B2B4-E487B869B28A} is Microsoft SQL Server 2019 Setup (English)
+# {DE5B7937-D5B5-4157-BC30-BB87F021CFF0} is SQL Server 2019 Database Engine Shared
+- name: SQL - Install SQL Express 2019
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\SQLEXPR_x64_ENU_2019\SETUP.EXE'
+    product_id: '{17DCED0E-5B27-453A-B2B4-E487B869B28A}'
+    arguments:
+      - '/Q'
+      - '/ACTION=Install'
+      - '/ROLE="AllFeatures_WithDefaults"'
+      - '/ENU=true'
+      - '/X86=false'
+      - '/SUPPRESSPRIVACYSTATEMENTNOTICE=true'
+      - '/IACCEPTSQLSERVERLICENSETERMS=true'
+      - '/IACCEPTPYTHONLICENSETERMS=true'
+      - '/IACCEPTROPENLICENSETERMS=true'
+      - '/UpdateEnabled=false'
+      - '/USEMICROSOFTUPDATE=false'
+      - '/UpdateSource=MU'
+      - '/FEATURES=SQLEngine,Replication,SNAC_SDK'
+      - '/HELP=false'
+      - '/INDICATEPROGRESS=false'
+      - '/INSTANCEID={{ sql_default_instance }}'
+      - '/INSTANCENAME={{ sql_default_instance }}'
+      - '/AGTSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE"'
+      - '/AGTSVCSTARTUPTYPE=Disabled'
+      - '/BROWSERSVCSTARTUPTYPE=Automatic'
+      - '/ENABLERANU=true'
+      - '/SQLSYSADMINACCOUNTS={{ win_local_admin }}'
+      - '/SECURITYMODE=SQL'
+      - '/SAPWD={{ sql_sa_acc_pw }}'
+      - '/SQLSVCSTARTUPTYPE=Automatic'
+      - '/ISSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE"'
+      - '/ISSVCStartupType=Automatic'
+      - '/SQLSVCINSTANTFILEINIT=false'
+      - '/ADDCURRENTUSERASSQLADMIN=true'
+      - '/TCPENABLED=1'
+      - '/NPENABLED=1'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+  register: sql_exp_2019
+
+- name: Add firewall rule to allow SQL browser access
+  community.windows.win_firewall_rule:
+    name: _Allow SQL Browser access
+    program: 'C:\Program Files (x86)\Microsoft SQL Server\90\Shared\sqlbrowser.exe'
+    action: allow
+    profiles: 'domain,private,public'
+    direction: in
+    protocol: udp
+    port: 1434
+    state: present
+    enabled: true
+  when: sql_exp_2019 is succeeded

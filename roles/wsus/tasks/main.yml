@@ -1,0 +1,327 @@
+---
+- name: Gathering Updated Facts before WSUS install
+  ansible.builtin.setup:
+
+- name: Install Update Services feature
+  ansible.windows.win_feature:
+    name:
+      - UpdateServices
+      - UpdateServices-WidDB
+      - UpdateServices-Services
+    state: present
+    include_management_tools: true
+  notify:
+    - Fix broken WSUS on Windows Server 2022 - Step 1
+    - Fix broken WSUS on Windows Server 2022 - Step 2
+    - Fix broken WSUS on Windows Server 2022 - Step 3
+    - Set WSUS content folder to {{ wsus_content_folder }}
+    - Configure upstream server IP-address and port
+    - Delete HTTPS binding without certificate
+
+- name: Flush handlers after Install Update Services feature
+  ansible.builtin.meta: flush_handlers
+
+- name: Create WSUS installation files depot and content folder for WSUS folders
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ local_wsus_depot }}"
+    - "{{ wsus_content_folder }}"
+
+- name: Set WsusPool applicationpool to best practices
+  community.windows.win_iis_webapppool:
+    name: WsusPool
+    state: present
+    attributes:
+      queueLength: 2000
+      processModel.idleTimeout: "00:00:00"
+      processModel.pingingEnabled: false
+      recycling.periodicRestart.privateMemory: 0
+      recycling.periodicRestart.time: "00:00:00:00.000000"
+  notify: Restart wsusPool applicationpool
+
+- name: Create cert_req_inf file from template for WSUS
+  ansible.windows.win_template:
+    src: 'cert_req_inf.j2'
+    dest: \\{{ pdc_hostname }}\PNSD\certs\wsushttps.inf
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Check if Certificate Signing Request (CSR) for WSUS exists
+  ansible.windows.win_stat:
+    path: \\{{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}\PNSD\certs\wsushttps.csr
+  register: csr_info
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Generate Certificate Signing Request (CSR) for WSUS
+  when: not csr_info.stat.exists
+  ansible.windows.win_command: certreq -f -new \\{{ pdc_hostname }}\PNSD\certs\wsushttps.inf \\{{ pdc_hostname }}\PNSD\certs\wsushttps.csr
+  register: wsus_csr_created
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Check if Certificate (CER) for WSUS exists
+  ansible.windows.win_stat:
+    path: \\{{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}\PNSD\certs\wsushttps.cer
+  register: wsus_cer_info
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Signing the CSR and generating certificate for WSUS
+  when: not wsus_cer_info.stat.exists
+  ansible.windows.win_command: certreq -f {{ config_parameter_1 }}{{ config_parameter_2 }} {{ submit_parameter }}
+  register: cmdout
+  delegate_to: '{{ pdc_hostname }}'
+  delegate_facts: true
+  vars:
+    ansible_user: '{{ win_domain_yokoadmin }}'
+    ansible_password: '{{ win_domain_yokoadmin_pw }}'
+    ansible_port_win: 5986
+    ansible_connection: winrm
+    ansible_winrm_server_cert_validation: ignore
+
+- name: Importing Certificate HTTPS Certificate for WSUS
+  ansible.windows.win_certificate_store:
+    path: \\{{ pdc_hostname }}\PNSD\certs\wsushttps.cer
+    store_location: LocalMachine
+    key_storage: machine
+    key_exportable: true
+    state: present
+  register: wsus_cert_import
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Repair import cert in case private key for WSUS is missing
+  when: wsus_cert_import.changed
+  ansible.windows.win_command: 'certutil -repairstore my {{ wsus_cert_import.thumbprints[0] }}'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+- name: Configure https binding for WSUS
+  community.windows.win_iis_webbinding:
+    name: "WSUS Administration"
+    protocol: https
+    port: 8531
+    certificate_hash: "{{ wsus_cert_import.thumbprints[0] }}"
+    state: present
+  notify:
+    - Setting SSL for WSUS Administration Subsites
+    - Configure SSL flag for WSUSUTIL
+  register: statuswsushttps
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: statuswsushttps.changed
+
+- name: Download Powershell Module for WSUS
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\WSUS\PoshWSUS
+    dest: C:\Program Files\WindowsPowerShell\Modules
+    flags: /E
+
+- name: Creating WSUS Computer Groups
+  ansible.windows.win_shell: |
+    $wsusserver = "{{ ansible_hostname }}"
+    [reflection.assembly]::LoadWithPartialName("Microsoft.UpdateServices.Administration") | out-null
+    $wsus = [Microsoft.UpdateServices.Administration.AdminProxy]::GetUpdateServer($wsusserver, $true,8531);
+    $wsus.CreateComputerTargetGroup("{{ item }}")
+  loop:
+    - 'GENERAL'
+    - 'YOK-CENTUM VP R6'
+    - 'YOK-Prosafe-RS R4'
+    - 'YOK-Exaopc R3'
+    - 'YOK-Exapilot R3'
+    - 'YOK-Exapilot R4'
+    - 'YOK-Exaplog R3'
+    - 'YOK-Exaquantum ARA R3'
+    - 'YOK-Exaquantum AMD R3'
+    - 'YOK-Exaquantum R2'
+    - 'YOK-Exaquantum SER R3'
+    - 'YOK-Exaquantum R3'
+    - 'YOK-Exaquantum SFM R3'
+    - 'YOK-PRM R4'
+    - 'YOK-PRM CSP R1'
+    - 'YOK-PACE R5'
+    - 'YOK-FASTTOOLS R10'
+    - 'YOK-InsightSuiteAE R1'
+    - 'YOK-VTSPortal R2'
+    - 'YOK-RTVT Host R1'
+    - 'YOK-RTVT ThinClient R1'
+    - 'YOK-CI Server R1'
+    - 'YOK-IRM R1'
+    - 'YOK-STARDOM R4'
+  register: wsus_computergroups
+  failed_when: >
+       wsus_computergroups.stderr_lines[5] is defined and
+       wsus_computergroups.stderr_lines[5] != '    + FullyQualifiedErrorId : WsusObjectAlreadyExistsException'
+  changed_when: "wsus_computergroups.stderr_lines[5] is not defined"
+
+- name: Download WSUS MS Product information archive
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\WSUS\MasterWSUSInfo
+    dest: '{{ local_wsus_depot }}'
+    flags: /E
+  register: master_wsus_info_archive
+
+- name: Import WSUS Product information
+  ansible.windows.win_command:
+    argv:
+      - wsusutil.exe
+      - import
+      - '{{ win_local_sw_depot }}\WSUS\master_wsus_info.xml.gz'
+      - '{{ win_local_sw_depot }}\WSUS\master_wsus_info_import.log'
+    chdir: 'C:\Program Files\Update Services\Tools'
+  changed_when: false
+  when: master_wsus_info_archive.changed
+
+- name: Set WSUS Products
+  ansible.windows.win_shell: |
+    $wsusServer = Get-WsusServer -UseSsl -PortNumber 8531 -Name $env:COMPUTERNAME
+    $arrayMsProducts = @(
+      ("Windows 10 LTSB 2016 or LTSC 2019", "a3c2375d-0c8a-42f9-bce0-28333e198407,d2085b71-5f1f-43a9-880d-ed159016d5c6"),
+      ("Windows Server 2016", "569e8e8f-c6cd-42c8-92a3-efbb20a0f6f5"),
+      ("Windows Server 2019", "f702a48c-919b-45d6-9aef-ca4248d50397"),
+      ("Office 2016", "25aed893-7c2d-4a31-ae22-28ff8ac150ed"),
+      ("SQL Server 2012", "56750722-19b4-4449-a547-5b68f19eee38"),
+      ("SQL Server 2014", "caab596c-64f2-4aa9-bbe3-784c6e2ccf9c"),
+      ("SQL Server 2016", "93f0b0bc-9c20-4ca5-b630-06eb4706a447"),
+      ("SQL Server 2017", "ca6616aa-6310-4c2d-a6bf-cae700b85e86"),
+      ("SQL Server 2019", "97b8b817-fce1-44e4-ac26-61127d4604c0"),
+      ("SQL Server 2022", "aeefa997-63b8-4c01-b19c-c19e1081b4ce")
+    )
+    # Disable all Products
+    $wsusServer | Get-WsusProduct | Set-WsusProduct -Disable
+    # Enable only the products in $arrayMsProducts
+    Foreach ($msProduct in $arrayMsProducts) {
+      $msProductIds = $msProduct[1].Split(",")
+      Foreach ($msProductId in $msProductIds) {
+        $wsusServer | Get-WsusProduct | Where-Object -FilterScript {$_.Product.ID -eq $msProductId} | Set-WsusProduct
+      }
+    }
+  changed_when: false
+
+- name: Set WSUS Classifications
+  ansible.windows.win_shell: |
+    $wsusServer = Get-WsusServer -UseSsl -PortNumber 8531 -Name $env:COMPUTERNAME
+    # Disable all classifications
+    $wsusServer | Get-WsusClassification | Set-WsusClassification -Disable
+    # Enable Security Updates
+    $wsusServer | Get-WsusClassification | Where-Object -FilterScript {$_.Classification.ID -eq "0fa1201d-4330-4fa8-8ae9-b877473b6441"} | Set-WsusClassification
+    # Enable Critical Updates
+    $wsusServer | Get-WsusClassification | Where-Object -FilterScript {$_.Classification.ID -eq "e6cf1350-c01b-414d-a61f-263d14d133b4"} | Set-WsusClassification
+  changed_when: false
+
+- name: Set Update language
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module -Name PoshWSUS
+      Connect-PSWSUSServer -WsusServer $env:COMPUTERNAME -Port 8531 -SecureConnection
+      Set-PSWSUSEnabledUpdateLanguages -Language 'en'
+  changed_when: false
+
+- name: Set Auto Approval Rule on GENERAL group
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module -Name PoshWSUS
+      Connect-PSWSUSServer -WsusServer $env:COMPUTERNAME -Port 8531 -SecureConnection
+      $group = Get-PSWSUSGroup | ? {$_.Name -eq "GENERAL"}
+      $class = Get-PSWSUSUpdateClassification | ? {$_.Title -eq "Critical Updates" -or $_.Title -eq "Security Updates"}
+      Get-PSWSUSInstallApprovalRule | Remove-PSWSUSInstallApprovalRule
+      New-PSWSUSInstallApprovalRule -Name "Auto Approve on GENERAL group" -Classification $class -Group $group -Enable
+  changed_when: false
+
+- name: Set synchronization schedule to start 23:00 and sync once per day
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module -Name PoshWSUS
+      Connect-PSWSUSServer -WsusServer $env:COMPUTERNAME -Port 8531 -SecureConnection
+      [System.TimeSpan]$TimeSnap = New-TimeSpan -Hours 23
+      Set-PSWSUSSyncSchedule -SynchronizeAutomatically $true -SynchronizeAutomaticallyTimeOfDay $TimeSnap -NumberOfSynchronizationsPerDay 1
+  changed_when: false
+
+- name: Add Administrators allow rights to Web.config file
+  ansible.windows.win_acl:
+    path: 'C:\Program Files\Update Services\WebServices\ClientWebService\Web.config'
+    user: Administrators
+    rights: FullControl
+    type: allow
+    state: present
+
+- name: Fix error 80244007 when a WSUS client scans for updates
+  ansible.windows.win_powershell:
+    script: |
+      If ((Test-Path {{ replace.file_path }}.bak) -eq $False) {
+        Copy-Item $_.FullName ($_.FullName).bak
+      }
+      ((Get-Content -Path "{{ replace.file_path }}" -Raw) -replace '{{ replace.from_text }}','{{ replace.to_text }}') |
+        Set-Content -Path "{{ replace.file_path }}"
+  vars:
+    replace:
+      file_path: 'C:\\Program Files\\Update Services\\WebServices\\ClientWebService\\Web.config'
+      from_text: '"maxInstalledPrerequisites" value="400"'
+      to_text: '"maxInstalledPrerequisites" value="800"'
+  changed_when: false
+
+# see: https://blogs.technet.microsoft.com/sus/2008/09/18/wsus-clients-fail-with-warning-syncserverupdatesinternal-failed-0x80244010/
+- name: Set max xml per request value
+  ansible.builtin.include_tasks: max_xml_per_request.yml
+  when: set_wsus_max_xml_per_request_to_unlimited | bool
+
+# configure wsus client mode
+# - name: configure wsus client mode
+#  win_shell: |
+#    $WSUServer = Get-WsusServer
+#    $WSUSConfig = $WSUServer.GetConfiguration()
+#    $WSUSConfig.TargetingMode = "Client"
+#    $WSUSConfig.Save()
+
+- name: Download WSUS import tool v2
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\WSUS\YokogawaTools
+    dest: '{{ wsus_content_folder }}'
+    flags: /E
+
+- name: Disabling Default Web Site on IIS
+  ansible.windows.win_shell: |
+    Import-Module WebAdministration
+    If ( Test-Path "IIS:\Sites\Default Web Site" ){
+      Set-ItemProperty 'IIS:\Sites\Default Web Site' serverAutoStart False
+      Stop-WebSite -Name "Default Web Site"
+    }
+  changed_when: false
+
+- name: Disable unnecessary services
+  ansible.windows.win_service:
+    name: '{{ item }}'
+    start_mode: disabled
+    state: stopped
+  loop:
+    - DPS
+    - iphlpsvc
+    - ShellHWDetection
+    - WerSvc
+
+- name: Downloading WSUS aftercare instructions to desktop
+  ansible.windows.win_template:
+    src: README-WSUS.j2
+    dest: C:\Users\Public\Desktop\README-WSUS.txt

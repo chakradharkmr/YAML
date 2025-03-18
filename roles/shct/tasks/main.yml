@@ -1,0 +1,158 @@
+---
+- name: Create local folder for SHCT {{ shct_revision }}
+  ansible.windows.win_file:
+    path: '{{ local_shct_depot }}\{{ item }}'
+    state: directory
+  loop:
+    - 'Data'
+    - 'YEF'
+
+- name: Download the files for SHCT {{ shct_revision }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SHCT\{{ shct_revision }}\{{ item }}
+    dest: '{{ local_shct_depot }}\{{ item }}'
+    flags: /E
+  loop:
+    - Program
+    - Setup
+
+- name: Download SHCT encryption tool
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SHCT\YEF
+    dest: '{{ local_shct_depot }}\YEF'
+    flags: /E
+
+- name: Set shares on the SHCT folders
+  ansible.windows.win_share:
+    name: '{{ item.name }}'
+    description: '{{ item.description }}'
+    path: '{{ item.path }}'
+    list: '{{ item.list }}'
+    change: '{{ item.change }}'
+    read: '{{ item.read }}'
+    caching_mode: '{{ item.caching_mode }}'
+  loop:
+    '{{ shct_shares }}'
+
+- name: Add all target hosts to the Computerlist.ini and M2-Computerlist.ini files
+  ansible.windows.win_template:
+    src: Computerlist.j2
+    dest: '{{ local_shct_depot }}\Program\ini\{{ item }}'
+  loop:
+    - 'Computerlist.ini'
+    - 'M2-Computerlist.ini'
+
+- name: Create empty M3-Computerlist.ini and M4-Computerlist.ini files
+  ansible.windows.win_file:
+    path: '{{ local_shct_depot }}\Program\ini\{{ item }}'
+    state: touch
+  loop:
+    - 'M3-Computerlist.ini'
+    - 'M4-Computerlist.ini'
+
+- name: Set RevInf.exe maximum execution time to {{ revinf_max_exec_time }}
+  ansible.windows.win_template:
+    src: SHCTRevinf.j2
+    dest: '{{ local_shct_depot }}\Program\ini\SHCTRevinf.ini'
+
+- name: Check current status of UAC for Administrators
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+  register: uac_status_before
+
+- name: Disable UAC for Administrators
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 0
+    type: dword
+  changed_when: false
+  when: uac_status_before.value == 1
+
+- name: Construct and copy the Config.ini file
+  ansible.windows.win_template:
+    src: Config.j2
+    dest: '{{ local_shct_depot }}\Program\ini\Config.ini'
+
+- name: Create 636A6779.ini file for domain
+  when: using_active_directory
+  block:
+    - name: Encrypt SHCT Username for domain
+      ansible.windows.win_command:
+        argv:
+          - '{{ local_shct_depot }}\YEF\SHCT_Encryption.exe'
+          - -E
+          - '{{ win_domain_name.split(".")[0] }}\{{ win_domain_admin }}'
+        chdir: '{{ local_shct_depot }}\YEF'
+      register: enc_shct_username
+
+    - name: Encrypt SHCT password for domain
+      ansible.windows.win_command:
+        argv:
+          - '{{ local_shct_depot }}\YEF\SHCT_Encryption.exe'
+          - -E
+          - '{{ win_domain_admin_pw }}'
+        chdir: '{{ local_shct_depot }}\YEF'
+      register: enc_shct_password
+
+    - name: Construct and copy the 636A6779.ini file for domain
+      ansible.windows.win_template:
+        src: 636A6779_ad.j2
+        dest: '{{ local_shct_depot }}\Program\ini\636A6779.ini'
+  # block end
+
+- name: Create 636A6779.ini file for workgroup
+  when: not using_active_directory
+  block:
+    - name: Encrypt SHCT Username for workgroup
+      ansible.windows.win_command:
+        argv:
+          - '{{ local_shct_depot }}\YEF\SHCT_Encryption.exe'
+          - -E
+          - '{{ win_local_admin }}'
+        chdir: '{{ local_shct_depot }}\YEF'
+      register: enc_shct_username
+
+    - name: Encrypt SHCT password for workgroup
+      ansible.windows.win_command:
+        argv:
+          - '{{ local_shct_depot }}\YEF\SHCT_Encryption.exe'
+          - -E
+          - '{{ win_local_admin_pw }}'
+        chdir: '{{ local_shct_depot }}\YEF'
+      register: enc_shct_password
+
+    - name: Construct and copy the 636A6779.ini file for workgroup
+      ansible.windows.win_template:
+        src: 636A6779_wg.j2
+        dest: '{{ local_shct_depot }}\Program\ini\636A6779.ini'
+  # block end
+
+- name: Encrypt SNMP password
+  ansible.windows.win_command:
+    argv:
+      - '{{ local_shct_depot }}\\Program\Script\SHCTSNMP.exe'
+      - -E
+      - '{{ snmp_user_pw }}'
+    chdir: '{{ local_shct_depot }}\Program\Script'
+  register: enc_snmp_password
+
+- name: Construct and copy the SHCTSNMP.cnf file
+  ansible.windows.win_template:
+    src: SHCTSNMP.j2
+    dest: '{{ local_shct_depot }}\Program\cnf\SHCTSNMP.cnf'
+
+- name: Re-enable UAC for Administrators if it was enabled before
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 1
+    type: dword
+  changed_when: false
+  when: uac_status_before.value == 1
+
+- name: Download SHCT aftercare instructions to desktop
+  ansible.windows.win_copy:
+    src: README-SHCT.txt
+    dest: C:\Users\Public\Desktop

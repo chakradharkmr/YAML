@@ -1,0 +1,7 @@
+---
+solidifier_server: SS1WL1S
+solidifier_client: SS1WL1C
+solidifier_version: 6.2.10
+solidifier_depot_server: '{{ win_local_sw_depot }}\Solidifier\{{ solidifier_server }}\{{ solidifier_version }}'
+solidifier_depot_client: '{{ win_local_sw_depot }}\Solidifier\{{ solidifier_client }}\{{ solidifier_version }}'
+solidifier_depot: "{{ solidifier_depot_server if ansible_facts['os_name'].find('Microsoft Windows Server') != -1 else solidifier_depot_client }}"

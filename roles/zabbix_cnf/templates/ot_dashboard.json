@@ -1,0 +1,71 @@
+{
+    "auto_start": "1",
+    "display_period": "30",
+    "name": "Yokogawa OT Systems",
+    "pages": [
+        {
+            "display_period": "0",
+            "name": "",
+            "widgets": [
+                {
+                    "fields": [
+                        {
+                            "name": "interface_type",
+                            "type": "0",
+                            "value": "1"
+                        }
+                    ],
+                    "height": "2",
+                    "name": "",
+                    "type": "hostavail",
+                    "view_mode": "0",
+                    "width": "7",
+                    "x": "0",
+                    "y": "0"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "show_type",
+                            "type": "0",
+                            "value": "1"
+                        }
+                    ],
+                    "height": "2",
+                    "name": "Problems by severity",
+                    "type": "problemsbysv",
+                    "view_mode": "0",
+                    "width": "10",
+                    "x": "7",
+                    "y": "0"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "3"
+                        },
+                        {
+                            "name": "show_tags",
+                            "type": "0",
+                            "value": "3"
+                        }
+                    ],
+                    "height": "13",
+                    "name": "Current problems",
+                    "type": "problems",
+                    "view_mode": "0",
+                    "width": "17",
+                    "x": "0",
+                    "y": "2"
+                }
+            ]
+        }
+    ],
+    "private": "0",
+    "userGroups": [
+    ],
+    "users": [
+    ]
+}

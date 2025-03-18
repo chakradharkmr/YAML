@@ -1,0 +1,135 @@
+---
+- name: Check for local installation media folder for Veeam
+  ansible.windows.win_stat:
+    path: '{{ local_vbr_depot }}\Setup\Bootstrap.exe'
+  register: local_vbr_depot_info
+
+- name: Create local installation media folders for Veeam {{ vbr_iso_version }}
+  ansible.builtin.include_tasks: st_vbr_depot.yml
+  when: not local_vbr_depot_info.stat.exists
+
+- name: Install Veeam Backup Catalog
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Catalog\VeeamBackupCatalog64.msi'
+    arguments:
+      /L*v "{{ local_vbr_depot }}\Catalog\\VeeamBackupCatalog64.log"
+      /qn
+      ACCEPT_THIRDPARTY_LICENSES="1"
+      ACCEPTEULA="1"
+      INSTALLDIR="{{ veeam_catalog_installdir }}"
+      VM_CATALOGPATH="{{ veeam_catalog_catalogdir }}"
+    product_id: '{76048E2D-9CF6-4793-9FF6-926A4F8EADC4}'
+    state: present
+
+- name: Download VEEAM license file
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\VeeamBackupAndReplication\LicenseFile
+    dest: '{{ local_vbr_depot }}'
+    flags: /E
+
+- name: Get filename of the Veeam B&R license file
+  block:
+    - name: Get filename of the Veeam B&R license file
+      ansible.windows.win_find:
+        paths: '{{ local_vbr_depot }}'
+        patterns: ['*.lic']
+      register: veeam_lic_files
+      failed_when: veeam_lic_files.files[0].path is undefined
+  rescue:
+    - name: Veeam B&R license file is required
+      ansible.builtin.pause:
+        prompt: >
+          Copy your Veeam B&R license file (*.lic) to '{{ local_vbr_depot }}' on {{ ansible_hostname }}.
+          Press ENTER when done.
+
+    - name: Get filename of the Veeam B&R license file
+      ansible.windows.win_find:
+        paths: '{{ local_vbr_depot }}'
+        patterns: ['*.lic']
+      register: veeam_lic_files
+      failed_when: veeam_lic_files.files[0].path is undefined
+    # block end
+
+- name: Install Veeam Backup & Replication Server. B&R license file = {{ veeam_lic_files.files[0].path }}
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Backup\Server.x64.msi'
+    arguments:
+      ACCEPTEULA="YES"
+      ACCEPT_THIRDPARTY_LICENSES="1"
+      VBR_SQLSERVER_AUTHENTICATION="1"
+      VBR_SERVICE_USER="{{ veeam_vbr_service_user }}"
+      VBR_SERVICE_PASSWORD="{{ veeam_vbr_service_pw }}"
+      VBR_SQLSERVER_USERNAME="{{ sql_sa_acc }}"
+      VBR_SQLSERVER_PASSWORD="{{ sql_sa_acc_pw }}"
+      VBR_SQLSERVER_SERVER="{{ inventory_hostname }}\{{ veeam_sql_instance }}"
+      INSTALLDIR="{{ veeam_backupserver_installdir }}"
+      VBR_LICENSE_FILE="{{ veeam_lic_files.files[0].path }}"
+    state: present
+
+- name: Install Veeam Backup & Replication Console
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Backup\Shell.x64.msi'
+    arguments: 'ACCEPTEULA="YES" ACCEPT_THIRDPARTY_LICENSES="1" INSTALLDIR="{{ veeam_backupconsole_installdir }}"'
+    state: present
+
+- name: Install Veeam Explorer for Microsoft Active Directory
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Explorers\VeeamExplorerforActiveDirectory.msi'
+    arguments: 'ACCEPT_EULA="1" ACCEPT_THIRDPARTY_LICENSES="1"'
+    state: present
+
+- name: Install Veeam Explorer for Microsoft SQL Server
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Explorers\VeeamExplorerforSQL.msi'
+    arguments: 'ACCEPT_EULA="1" ACCEPT_THIRDPARTY_LICENSES="1"'
+    state: present
+
+- name: Install Veeam Agent for Microsoft Windows Redistributable
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\Packages\VAWRedist.msi'
+    state: present
+    arguments: '/L*v "{{ local_vbr_depot }}\Packages\VAWRedist.log" /norestart /qn ACCEPTEULA="YES" ACCEPT_THIRDPARTY_LICENSES="1"'
+  register: vawinstaller
+  failed_when: vawinstaller.rc != 0 and vawinstaller.rc != 1603
+  # 0 means no errors occurred
+  # 1603 means that some error occurred and, for example, occurs when a newer version has already been installed
+
+- name: Looking for patches in Updates directory
+  ansible.windows.win_find:
+    paths: '{{ local_vbr_depot }}\Updates'
+    recurse: false
+    file_type: file
+  ignore_errors: true
+  register: file
+
+- name: Check if a VBR patch exists
+  ansible.builtin.set_fact:
+    patch: "{{ file.matched }}"
+
+- name: Set the patch filename
+  ansible.builtin.set_fact:
+    patch_file: "{{ file.files[0].filename }}"
+  when: patch | bool
+
+- name: Check current Veeam Backup Repository build number
+  ansible.windows.win_shell: |
+    $InstallPath = Get-ItemProperty -Path "HKLM:\Software\Veeam\Veeam Backup and Replication" | Select -ExpandProperty CorePath
+    Add-Type -LiteralPath "$InstallPath\Veeam.Backup.Configuration.dll"
+    $ProductData = [Veeam.Backup.Configuration.BackupProduct]::Create()
+    $VbrVersion = $ProductData.ProductVersion.ToString()
+    if ($ProductData.MarketName -ne "") {$VbrVersion += " $($ProductData.MarketName)"}
+    $VbrVersion
+  register: veeam_backup_build
+  changed_when: false
+
+- name: Include VBR patch tasks
+  ansible.builtin.include_tasks: st_vbr_patch.yml
+  when: patch | bool and not veeam_backup_build.stdout_lines[0] == '11.0.1.1261 P20220302'
+
+- name: Configure Veeam
+  ansible.builtin.include_tasks: st_configure_veeam.yml
+
+- name: Downloading VEEAM aftercare instructions to desktop
+  ansible.windows.win_copy:
+    src: README-VEEAM.txt
+    dest: C:\Users\Public\Desktop

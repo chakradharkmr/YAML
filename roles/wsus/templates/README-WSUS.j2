@@ -1,0 +1,14 @@
+AFTERCARE INSTRUCTIONS FOR WSUS ROLE.
+
+SSL is automatically configured for this WSUS server.
+
+The following tasks still need to be done manually:
+1. When opening the MMC for WSUS you need to manually add the local server. Make sure to tick SSL, use port 8531 and type {{ ansible_hostname }}.
+2. Move all WSUS client computers from the "Unassigned Computers" group to the right computer group after they have reported themselves to WSUS.
+
+To make sure that latest MS updates are being served to all WSUS clients:
+3. Connect this WSUS server to an - updated - upstream WSUS server.
+4. Synchronize WSUS to download MS update metadata into the WSUS database and MS Update installation files into WSUS folder.
+5. Import latest Yokogawa QPL v2, see {{ wsus_content_folder }}\YokogawaTools\README.txt for details.
+
+Feel free to use this file as a checklist and don't forget to delete after.

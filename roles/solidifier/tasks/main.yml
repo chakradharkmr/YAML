@@ -1,0 +1,66 @@
+---
+# This will install and configure the Whitelisting software for Yokogawa machines.
+# DO NOT run this until everything else has been installed!
+
+- name: Create Solidifier Folder
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\Solidifier\'
+    state: directory
+
+- name: Download Solidifier Server {{ solidifier_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\Whitelisting\{{ solidifier_version }}\{{ solidifier_server }}\
+    dest: '{{ solidifier_depot }}'
+    flags: /E
+  when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1
+
+- name: Download Solidifier Client {{ solidifier_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\Whitelisting\{{ solidifier_version }}\{{ solidifier_client }}\
+    dest: '{{ solidifier_depot }}'
+    flags: /E
+  when: ansible_facts['os_name'].find('Microsoft Windows 10') != -1
+
+- name: Install Solidifier {{ solidifier_version }}
+  ansible.windows.win_package:
+    path: '{{ solidifier_depot }}\SOLIDCOR835-126_WIN\setup-win-8-10-2012-amd64-8.3.5.126.exe'
+    product_id: "{432DB9E4-6388-432F-9ADB-61E8782F4593}"
+    arguments: '/s /v" /qn SERIALNUMBER=0142-4543-0585-1191-6326 SHORTCUT=1"'
+    state: present
+  register: solidifier
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+
+- name: Set policy to wait for network before logon
+  ansible.builtin.include_role:
+    name: gpedit
+  vars:
+    gpedit_target_policy_settings:
+      - { user_dir: '$env:windir\System32\GroupPolicy\Machine\Registry.pol',
+          reg_path: 'Software\Policies\Microsoft\Windows NT\CurrentVersion\Winlogon',
+          reg_name: 'SyncForegroundPolicy',
+          reg_data: '1',
+          reg_type: 'DWord' }
+
+- name: Configure Solidifier
+  ansible.builtin.include_tasks: wl_config.yml
+  when: solidifier.changed
+
+- name: Set policy not to wait for network before logon
+  ansible.builtin.include_role:
+    name: gpedit
+  vars:
+    gpedit_target_policy_settings:
+      - { user_dir: '$env:windir\System32\GroupPolicy\Machine\Registry.pol',
+          reg_path: 'Software\Policies\Microsoft\Windows NT\CurrentVersion\Winlogon',
+          reg_name: 'SyncForegroundPolicy',
+          reg_data: '0',
+          reg_type: 'DWord' }
+
+- name: Downloading whitelisting aftercare instructions to desktop
+  ansible.windows.win_copy:
+    src: README-WL.txt
+    dest: C:\Users\Public\Desktop

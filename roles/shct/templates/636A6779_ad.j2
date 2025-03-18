@@ -1,0 +1,3 @@
+{% for target_host in groups['WINDOWS'] %}
+{{ target_host }},{{ enc_shct_username.stdout_lines[0] }},{{ enc_shct_password.stdout_lines[0] }},{{ win_domain_name.split(".") [0] }},
+{% endfor %}

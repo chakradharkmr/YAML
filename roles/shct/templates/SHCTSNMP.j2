@@ -1,0 +1,9 @@
+[TOOLPATH]
+SNMPToolExecutePath=..\bin\SNMP
+{% for networkdevice in networkdevices %}
+[{{ networkdevice.ipaddress }}]
+SNMPMode={{ networkdevice.snmp_version }}
+Community={{ snmp_readonly_community }}
+UserID={{ snmp_user }}
+Password={{ enc_snmp_password.stdout_lines[0] }}
+{% endfor %}

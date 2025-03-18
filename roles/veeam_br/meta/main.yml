@@ -1,0 +1,26 @@
+---
+galaxy_info:
+  author: Michael van Dooren / Clement Buurman
+  description: >
+      Installs and configures VEEAM B&R 11a
+      installs all additional software like: Veam Explorer for AD,
+      Veam explorer for SQL and the VBR console for managing the application.
+      Looks for and finds any updates and also installs them
+  company: Yokogawa Europe Solutions B.V.
+  license: none
+  min_ansible_version: '2.10.6'
+  platforms:
+    - name: Windows
+      release:
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags: []
+
+dependencies:
+  - role: win_local_sw_depot
+  - role: report_viewer_2015
+  - role: sql_mgmt_objects_2014
+  - { role: vcredist, vcredist_versions: { 2010, 2022 } }
+  - role: sql_expr_2017_add_instance
+  - role: ms_dotnet

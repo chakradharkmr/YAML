@@ -1,0 +1,11 @@
+---
+- name: Download SQL Native Client 2012
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SQLNativeClient
+    dest: '{{ win_local_sw_depot }}\SQLNativeClient'
+    flags: /E
+
+- name: Install SQL Native Client 2012
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\SQLNativeClient\sqlncli_x64.msi'
+    state: present

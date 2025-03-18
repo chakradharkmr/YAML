@@ -1,0 +1,34 @@
+---
+- name: Download OpenSSH
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\OpenSSH-Win64
+    dest: '{{ win_local_sw_depot }}OpenSSH-Win64'
+    flags: /E
+
+- name: Unzip openssh in extraction dir
+  community.windows.win_unzip:
+    src: '{{ win_local_sw_depot }}\OpenSSH-Win64\OpenSSH-Win64.zip'
+    dest: '{{ openssh_extract_dir }}'
+    creates: "{{ openssh_extract_dir }}"
+
+- name: Check if ssh private key exists
+  ansible.windows.win_stat:
+    path: '{{ openssh_extract_dir }}\OpenSSH-Win64\ssh_host_dsa_key'
+  register: private_key
+
+- name: Install OpenSSH-Win64
+  ansible.windows.win_shell: |
+    cd '{{ openssh_extract_dir }}\OpenSSH-Win64'
+    .\ssh-keygen -A
+    New-NetFirewallRule -Protocol TCP -LocalPort 22 -Direction Inbound -Action Allow -DisplayName SSH
+    .\sshd.exe install
+    Start-Service sshd
+    Set-Service sshd -StartupType Automatic
+  when: not private_key.stat.exists
+
+- name: Deploy ssh server configuration
+  ansible.windows.win_template:
+    src: sshd_config.j2
+    dest: '{{ openssh_extract_dir }}\OpenSSH-Win64\sshd_config'
+  notify:
+    - restart sshd

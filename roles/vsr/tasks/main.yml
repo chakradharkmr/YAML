@@ -1,0 +1,62 @@
+---
+- name: Download Veritas System Recovery {{ vsr_ver }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\Veritas_System_Recovery\{{ vsr_ver }}
+    dest: '{{ win_local_sw_depot }}\Veritas_System_Recovery\{{ vsr_ver }}'
+    flags: /E
+
+- name: Set the correct Product-ID for VSR {{ vsr_ver }}
+  ansible.builtin.set_fact:
+    vsr_product_id: '{{ lookup("vars", "product_id_vsr_" + vsr_ver.split(".")[0]) }}'
+
+# VSR 21 needs a network cable present in the system and a dns server configured. Else the installation will fail!!
+# https://www.veritas.com/support/en_US/article.100046027
+- name: Install Veritas System Recovery {{ vsr_ver }}
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\Veritas_System_Recovery\{{ vsr_ver }}\SSR\SSRx64\Setup.exe'
+    product_id: '{{ vsr_product_id }}'
+    arguments:
+      - '/S:'
+      - '/SERVICE:'
+      - '/CONSOLE:'
+      - '/GRO:'
+      - '/SRDINSTALL:'
+      - '/BROWSER:'
+      - '/DISABLETELEMETRY:'
+  register: vsr
+  notify:
+    - Delete all current backup tasks
+    - Deploy Backup Task script
+    - Create {{ vsr_backup_interval }} Backup Task
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: vsr.reboot_required
+
+- name: Create backup destination folder
+  ansible.windows.win_file:
+    path: '{{ vsr_where_to_backup }}\{{ inventory_hostname }}'
+    state: directory
+
+- name: Deploy the licensing script
+  ansible.windows.win_template:
+    src: InstallLicense.ps1
+    dest: '{{ win_local_sw_depot }}\Veritas_System_Recovery\{{ vsr_ver }}\Docs\Automation\PowershellScripts\InstallLicense.ps1'
+
+- name: Execute the license script
+  ansible.windows.win_shell: '{{ win_local_sw_depot }}\Veritas_System_Recovery\{{ vsr_ver }}\Docs\Automation\PowershellScripts\InstallLicense.ps1'
+  register: vsr_license
+  changed_when: false
+  failed_when: vsr_license.stdout_lines[2] == 'Failed to Install license with an Exception...'
+
+- name: Supress Veritas Splash screen on logon 1/2
+  community.windows.win_lineinfile:
+    path: C:\ProgramData\Veritas\VERITAS SYSTEM RECOVERY\Settings.ini
+    regex: '^TrayRunConsole='
+    line: 'TrayRunConsole=0'
+
+- name: Supress Veritas Splash screen on logon 2/2
+  community.windows.win_lineinfile:
+    path: C:\ProgramData\Veritas\VERITAS SYSTEM RECOVERY\Settings.ini
+    regex: '^ShowWelcome='
+    line: 'ShowWelcome=0'

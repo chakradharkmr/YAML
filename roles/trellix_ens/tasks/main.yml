@@ -1,0 +1,50 @@
+---
+- name: Create ys-AV folder Folder
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\ys-AV'
+    state: directory
+
+- name: Download Trellix ENS Standalone {{ trellix_ens_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ys-AV\{{ trellix_ens_version }}
+    dest: '{{ win_local_sw_depot }}\ys-AV\{{ trellix_ens_version }}'
+    flags: /E
+
+- name: Download Trellix ENS Standalone DAT update file
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ys-AV\DAT-UPDATES
+    dest: '{{ win_local_sw_depot }}\ys-AV\DAT-UPDATES'
+    flags: /E
+
+- name: Download Trellix MER file
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ys-AV\MER
+    dest: 'C:\Prorgam Files (x86)\Yokogawa\EPS\MER'
+    flags: /E
+
+- name: Install Trellix ENS Standalone {{ trellix_ens_version }}
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\ys-AV\{{ trellix_ens_version }}\IA System Product\YKGW_ENS_AE_{{ trellix_ens_version }}\setupEP.exe'
+    product_id: '{820D7600-089E-486B-860F-279B8119A893}'
+    arguments: '/quiet ADDLOCAL="tp" /nocontentupdate'
+    state: present
+  register: ens
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+
+- name: Install Trellix ENS Standalone DAT update file
+  ansible.windows.win_command:
+    cmd: Install_DAT.cmd
+    chdir: '{{ win_local_sw_depot }}\ys-AV\DAT-UPDATES'
+  register: dat_update
+
+- name: Display DAT update result
+  ansible.builtin.debug:
+    msg: '{{ dat_update }}'
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: ens.reboot_required

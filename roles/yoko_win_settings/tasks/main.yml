@@ -1,0 +1,91 @@
+---
+- name: Disable Automatic Cleanup
+  community.windows.win_scheduled_task:
+    path: \Microsoft\Windows\Servicing
+    name: StartComponentCleanup
+    enabled: false
+
+# This is done for the memory leak issue regarding CENTUM
+- name: Disable Activity tracking history
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System
+    name: PublishUserActivities
+    data: 0
+    type: dword
+  when: ansible_facts['os_name'].find('Windows 10 Enterprise LTSC') != -1
+
+# HIS accounts often have simple passwords
+- name: Disable password complexity requirements
+  community.windows.win_security_policy:
+    section: System Access
+    key: PasswordComplexity
+    value: '0'
+  when: not using_active_directory
+
+- name: Set Powerplan to Yokogawa Power Plan
+  community.windows.win_power_plan:
+    name: "Yokogawa Power Plan"
+
+- name: Disable Scheduled Defragmentation
+  community.windows.win_scheduled_task:
+    path: \Microsoft\Windows\Defrag
+    name: ScheduledDefrag
+    enabled: false
+
+- name: Disable Fast Startup
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power
+    name: HiberbootEnabled
+    data: 0
+    type: dword
+
+- name: Disable Windows Defender
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender
+    name: DisableAntiSpyware
+    data: 1
+    type: dword
+
+- name: Set Admin User Inactive windows mouse scrolling
+  ansible.windows.win_regedit:
+    path: HKCU:\Control Panel\Desktop
+    name: MouseWheelRouting
+    data: 0
+    type: dword
+
+- name: Set New User Inactive windows mouse scrolling
+  ansible.windows.win_regedit:
+    path: HKLM:\ANSIBLE\Control Panel\Desktop
+    name: MouseWheelRouting
+    data: 0
+    type: dword
+    hive: C:\Users\Default\NTUSER.dat
+
+- name: Disable toast notifications
+  ansible.windows.win_regedit:
+    path: HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications
+    name: NoToastApplicationNotification
+    data: 1
+    type: dword
+
+- name: Disable security notifications (EPO DAT Out-of-date)
+  ansible.windows.win_regedit:
+    path: HKU:\.DEFAULT\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance
+    name: Enabled
+    data: 0
+    type: dword
+
+- name: Set pagefile size to 1.5 times total memory
+  community.windows.win_pagefile:
+    automatic: false
+    drive: C
+    initial_size: "{{ ansible_facts['memtotal_mb'] * 1.5 }}"
+    maximum_size: "{{ ansible_facts['memtotal_mb'] * 1.5 }}"
+    override: true
+    state: present
+  register: pagefile
+  when: ansible_facts['virtualization_role'] != "guest"
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: pagefile.changed

@@ -1,0 +1,78 @@
+---
+- name: Create a Protection group for the target computer
+  ansible.windows.win_shell: |
+    Add-PSSnapin VeeamPSSnapin
+    $computers = @("{{ item.name }}") |
+      ForEach { New-VBRIndividualComputerCustomCredentials -HostName $_ -Credentials "{{ win_domain_name }}\{{ win_domain_backupservice }}" }
+    $compscope = New-VBRIndividualComputerContainer -CustomCredentials $computers
+    Add-VBRProtectionGroup -Name "{{ item.group }}" -Container $compscope
+  register: protection_group
+  changed_when: protection_group.rc == 0
+  failed_when: protection_group.rc >= 2
+
+- name: Rescan the target computer if required
+  when: protection_group.changed
+  block:
+    - name: Rescan the target computer
+      ansible.windows.win_shell: |
+        Add-PSSnapin VeeamPSSnapin
+        Get-VBRProtectionGroup -Name "{{ item.group }}" | Rescan-VBREntity
+      register: rescan_after_prot_group
+
+    - name: Pause the play for 60 seconds to allow the rescan to finish
+      ansible.builtin.pause:
+        seconds: 60
+  # block end
+
+- name: Push Veeam Backup Agent to the target computer
+  ansible.windows.win_shell: |
+    Add-PSSnapin VeeamPSSnapin
+    $group = Get-VBRProtectionGroup -Name "{{ item.group }}"
+    $discoveredcomputers = Get-VBRDiscoveredComputer -ProtectionGroup $group
+    Install-VBRDiscoveredComputerAgent -DiscoveredComputer $discoveredcomputers -Confirm
+  register: install_agent
+  changed_when: install_agent.rc == 0
+  failed_when: install_agent.rc >= 2
+
+- name: Reboot the target computer if required
+  when: install_agent.changed
+  block:
+    - name: Pause the play for 60 seconds to allow agent installation to finish
+      ansible.builtin.pause:
+        seconds: 60
+
+    - name: Reboot the target computer
+      ansible.windows.win_shell: Restart-Computer -ComputerName {{ item.name }} -Wait -For PowerShell -Timeout 600 -Delay 2 -Force
+      become: true
+      vars:
+        ansible_become_method: runas
+        ansible_become_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+        ansible_become_pass: '{{ win_domain_yokoadmin_pw }}'
+
+    - name: Rescan the target computer
+      ansible.windows.win_shell: |
+        Add-PSSnapin VeeamPSSnapin
+        Get-VBRProtectionGroup -Name "{{ item.group }}" | Rescan-VBREntity
+      register: rescan_after_agent_install
+
+    - name: Pause the play for 1 minute to allow the rescan to finish
+      ansible.builtin.pause:
+        minutes: 1
+  # block end
+
+- name: Create a Backup Job for the target computer
+  ansible.windows.win_shell: |
+    Add-PSSnapin VeeamPSSnapin
+    $group = Get-VBRProtectionGroup -Name "{{ item.group }}"
+    $repository = Get-VBRBackupRepository -Name 'Yokogawa Backup Repository'
+    $destination = New-VBRComputerDestinationOptions -OSPlatform Windows -BackupRepository $repository
+    $daily = New-VBRDailyOptions -DayOfWeek "{{ item.day }}" -Period "{{ item.time }}"
+    $schedule = New-VBRServerScheduleOptions -Type Daily -DailyOptions $daily
+    Add-VBRComputerBackupJob -OSPlatform Windows -Type Server -Mode ManagedByBackupServer`
+      -Name '{{ item.group }} Backup Job' -BackupObject $group -BackupType SelectedVolumes `
+      -SelectedVolumes '{{ volumes_to_backup }}' -BackupRepository $repository -ScheduleOptions $schedule -EnableSchedule
+  vars:
+    volumes_to_backup: C:\
+  register: backup_job
+  changed_when: backup_job.rc == 0
+  failed_when: backup_job.rc >= 2

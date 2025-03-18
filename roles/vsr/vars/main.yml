@@ -1,0 +1,4 @@
+---
+vsr_ver: "{{ vsr_version | default('21.0.3') }}"
+product_id_vsr_18: '{486397B9-1DA9-4974-866B-BCEF14CF115D}'
+product_id_vsr_21: '{34022AC2-263D-4343-A8EB-368448C9B90E}'

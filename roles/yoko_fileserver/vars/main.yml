@@ -1,0 +1,10 @@
+---
+shared_folders:
+  - { name: 'PNSD', full: 'Administrators' }
+  - { name: 'KeepassDB', full: 'Administrators' }
+  - { name: 'KeepassDB', full: 'CTM_ENGINEER,CTM_MAINTENANCE', group: CENTUM }
+  - { name: 'KeepassDB', full: 'PSF_ENGINEER,PSF_MAINTENANCE', group: PROSAFE }
+  - { name: 'KeepassDB', full: 'OPC_ENGINEER,OPC_MAINTENANCE', group: SOLUTIONBASED }
+  - { name: 'CENTUM', full: 'Administrators,CTM_ENGINEER,CTM_MAINTENANCE', group: CENTUM }
+  - { name: 'PROSAFE', full: 'Administrators,PSF_ENGINEER,PSF_MAINTENANCE', group: PROSAFE }
+  - { name: 'SOLUTIONBASED', full: 'Administrators,OPC_ENGINEER,OPC_MAINTENANCE', group: SOLUTIONBASED }

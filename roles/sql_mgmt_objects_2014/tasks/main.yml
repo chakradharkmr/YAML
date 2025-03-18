@@ -1,0 +1,12 @@
+---
+- name: Download SQL Shared Management Objects 2014
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\sql-mgmt-objects2014
+    dest: '{{ win_local_sw_depot }}\sql-mgmt-objects2014'
+    flags: /E
+
+- name: Install SQL Shared Management Objects 2014
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\sql-mgmt-objects2014\SharedManagementObjects.msi'
+    product_id: '{1F9EB3B6-AED7-4AA7-B8F1-8E314B74B2A5}'
+    state: present

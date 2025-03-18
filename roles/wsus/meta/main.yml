@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: Michael van Dooren / Clement Buurman
+  description: Installs the WSUS role on the server.
+               Uses the new (v2) yokogawa group names. This means you have to use the new Powershell import script too.
+               Requests and installs https certificate for WSUS services and configures wsus for HTTPS requests on port 8531
+               The role assumes the certificate role is installed on the PDC.
+  company: Yokogawa Europe Solutions B.V.
+  license: none
+  min_ansible_version: '2.10.6'
+  platforms:
+    - name: Windows
+      release:
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags: []
+
+dependencies:
+  - role: win_local_sw_depot

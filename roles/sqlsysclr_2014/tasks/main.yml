@@ -1,0 +1,11 @@
+---
+- name: Download SQL Sys Clr Types 2014
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SQLSysClrTypes2014
+    dest: '{{ win_local_sw_depot }}\SQLSysClrTypes2014'
+    flags: /E
+
+- name: Install SQL Sys Clr Types 2014
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\SQLSysClrTypes2014\SQLSysClrTypes.msi'
+    state: present

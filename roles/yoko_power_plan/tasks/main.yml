@@ -1,0 +1,18 @@
+---
+- name: Create Power Plan Directory in SW depot
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\power-plan'
+    state: directory
+
+- name: Download Yokogawa Power Plan
+  ansible.windows.win_copy:
+    src: files/yokogawa-power-plan.pow
+    dest: '{{ win_local_sw_depot }}\power-plan\yokogawa-power-plan.pow'
+
+- name: Import Yokogawa Power Plan
+  ansible.windows.win_shell: |
+    $listpowerplans = powercfg -list
+    if ( $listpowerplans -match "Yokogawa Power Plan" ) {echo PowerPlanExists}
+    Else { powercfg -import {{ win_local_sw_depot }}\power-plan\yokogawa-power-plan.pow }
+  register: result
+  changed_when: (result.stdout.find("PowerPlanExists") == -1)

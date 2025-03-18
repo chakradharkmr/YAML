@@ -1,0 +1,47 @@
+---
+custom_regional_settings:
+  - { name: sShortDate, data: "dd-MMM-yyyy" }
+  - { name: sLongDate, data: "MMMM d, yyyy" }
+  - { name: sShortTime, data: "HH:mm" }
+  - { name: sTimeFormat, data: "HH:mm:ss" }
+  - { name: sCurrency, data: "€" }
+
+registry_hkcu:
+  - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', name: 'Hidden', type: dword, data: 1 }
+  - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', name: 'HideFileExt', type: dword, data: 0 }
+  - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', name: 'ShowSuperHidden', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\Location', name: 'Deny', type: string, data: 'Off' }
+  # - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Diagnostics\DiagTrack', name: 'ShowedToastAtLevel', type: dword, data: 0 }
+  # - { path: 'HKCU:\SOFTWARE\Microsoft\Windows\Input\TIPC', name: 'Enabled', type: dword, data: 0 }
+  # - { path: 'HKCU:\SOFTWARE\Microsoft\Speech_OneCore\Settings\OnlineSpeechPrivacy', name: 'HasAccepted', type: dword, data: 0 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer', name: 'DisableNotificationCenter', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent', name: 'DisableTailoredExperiencesWithDiagnosticData', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\AdvertisingInfo', name: 'Enabled', type: dword, data: 0 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\OOBE', name: 'DisablePrivacyExperience', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\ClientTelemetry', name: 'SendTelemetry', type: dword, data: 3 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy', name: 'ControllerConnectedServicesEnabled', type: dword, data: 2 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy', name: 'DisconnectedState', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy', name: 'DownloadContentDisabled', type: dword, data: 1 }
+  # - { path: 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy', name: 'UserContentDisabled', type: dword, data: 1 }
+
+registry_hklm:
+  - { path: 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer', name: 'UseDesktopIniCache', type: dword, data: 0 }
+  - { path: 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection', name: 'AllowTelemetry', type: dword, data: 0 }
+  - { path: 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection', name: 'MaxTelemetryAllowed', type: dword, data: 0 }
+  # - { path: 'HKLM:\SOFTWARE\Microsoft\MdmCommon\SettingValues', name: 'LocationSyncEnabled', type: dword, data: 0 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray', name: 'HideSystray', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications', name: 'DisableNotifications', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection', name: 'AllowTelemetry', type: dword, data: 0 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE', name: 'DisablePrivacyExperience', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System', name: 'DontDisplayLastUsername', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer', name: 'NoDriveTypeAutoRun', type: dword, data: 181 }
+  # - { path: 'HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener', name: 'Start', type: dword, data: 0 }
+  # - { path: 'HKLM:\SYSTEM\CurrentControlSet\Services\DiagTrack', name: 'Start', type: dword, data: 4 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', name: 'WUServer', type: string,
+  #     data: "https://{{ hostvars[groups['WSUS'][0]]['inventory_hostname_short'] }}:8531/" }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', name: 'WUStatusServer', type: string,
+  #     data: "https://{{ hostvars[groups['WSUS'][0]]['inventory_hostname_short'] }}:8531/" }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', name: 'UpdateServiceUrlAlternate', type: string, data: "" }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', name: 'DoNotConnectToWindowsUpdateInternetLocations', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', name: 'UseWUServer', type: dword, data: 1 }
+  # - { path: 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', name: 'NoAutoUpdate', type: dword, data: 1 }

@@ -1,0 +1,19 @@
+---
+- name: Download SQL Server management setup files
+  community.windows.win_robocopy:
+    src: '\\{{ sw_src_path }}\SQLServerMGMT\{{ sql_svr_mgmt_version }}'
+    dest: '{{ win_local_sw_depot }}\SQLServerMGMT\{{ sql_svr_mgmt_version }}'
+    flags: /E
+
+- name: SQL - Install SQL Server Management Studio {{ sql_svr_mgmt_version }}
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\SQLServerMGMT\{{ sql_svr_mgmt_version }}\SSMS-Setup-ENU.exe'
+    product_id: '{33F6AA45-05AE-4040-A83A-6B27778CA3A4}'
+    arguments:
+      - '/Quiet'
+      - '/SSMSInstallRoot=%ProgramFiles%\SSMS_19_1'
+  register: sql_svr_mgmt
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: sql_svr_mgmt.reboot_required

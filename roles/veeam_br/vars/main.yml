@@ -1,0 +1,18 @@
+---
+# Change the settings as necessary. For a list of all settings check https://helpcenter.veeam.com/docs/backup/vsphere/silent_install_catalog.html?ver=100
+# If not changed these are the default settings as normally set by the installation process.
+vbr_iso_version: '11.0.1.1261_20220302'
+local_vbr_depot: '{{ win_local_sw_depot }}\VeeamBackupAndReplication\{{ vbr_iso_version }}'
+
+sql_instance: '{{ veeam_sql_instance }}'
+sql_sysadmin_acc: "{{ win_domain_name.split('.')[0] }}\\{{ win_domain_yokoadmin }}"
+sql_sysadmin_acc_pw: '{{ win_domain_yokoadmin_pw }}'
+sql_inst_tcp_port: '{{ veeam_sql_inst_tcp_port }}'
+
+veeam_catalog_installdir: 'C:\Program Files\Veeam\Backup and Replication\Backup Catalog'
+veeam_catalog_catalogdir: 'C:\VBRCatalog'
+
+veeam_backupserver_installdir: 'C:\Program Files\Veeam\Backup and Replication\Backup'
+veeam_backupconsole_installdir: 'C:\Program Files\Veeam\Backup and Replication\Console'
+veeam_vbr_service_user: "{{ win_domain_name.split('.')[0] }}\\{{ win_domain_yokoadmin }}"
+veeam_vbr_service_pw: '{{ win_domain_yokoadmin_pw }}'

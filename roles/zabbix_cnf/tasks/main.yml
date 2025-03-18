@@ -1,0 +1,282 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: '{{ inventory_hostname }}'
+    use: debian
+  when: group_names[0] == "NMS"
+
+- name: Set timezone
+  community.general.timezone:
+    name: Europe/Amsterdam
+  when: group_names[0] == "NMS"
+
+- name: Reboot before attempting to connect to zabbix API
+  ansible.builtin.reboot:
+
+# - name: Pause for 30 seconds
+#   ansible.builtin.pause:
+#     seconds: 30
+
+- name: Ensure that required apt packages are installed
+  ansible.builtin.apt:
+    name: '{{ item }}'
+    state: present
+  loop:
+    - python3
+    - pip
+    - virtualenv
+    - graphviz
+    - python3-pydotplus
+    - python3-webcolors
+    - python3-pillow
+    - python3-graphviz
+  when: group_names[0] == "NMS"
+
+# - name: Ensure that the required pip packages are installed
+#   ansible.builtin.pip:
+#     name: '{{ item }}'
+#     executable: pip3
+#   loop:
+#     - pydotplus
+#     - webcolors
+#     - pillow
+#     - graphviz
+#   when: group_names[0] == "NMS"
+
+- name: Add another bin dir to system-wide $PATH.
+  ansible.builtin.copy:
+    dest: /etc/profile.d/custom-path.sh
+    content: 'PATH=$PATH:{{ graphviz_path }}'
+    mode: preserve
+  when: group_names[0] == "NMS"
+
+- name: Update settings
+  vars:
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 80
+    ansible_httpapi_use_ssl: false
+    ansible_httpapi_validate_certs: false
+    ansible_user: Admin
+    ansible_httpapi_pass: zabbix
+  community.zabbix.zabbix_settings:
+    alert_usrgrp: "0"
+    auditlog_enabled: false
+    blink_period: "10m"
+    connect_timeout: "30s"
+    custom_color: false
+    default_inventory_mode: automatic
+    default_timezone: Europe/Amsterdam
+  when: group_names[0] == "NMS"
+
+- name: Add windows hosts group
+  vars:
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 80
+    ansible_httpapi_use_ssl: false
+    ansible_httpapi_validate_certs: false
+    ansible_user: Admin
+    ansible_httpapi_pass: zabbix
+  community.zabbix.zabbix_group:
+    host_groups:
+      - Windows hosts
+  when: group_names[0] == "NMS"
+
+- name: Update autoregistration rule
+  vars:
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 80
+    ansible_httpapi_use_ssl: false
+    ansible_httpapi_validate_certs: false
+    ansible_user: Admin
+    ansible_httpapi_pass: zabbix
+  community.zabbix.zabbix_action:
+    name: 'Autoregister Windows hosts'
+    event_source: auto_registration
+    state: present
+    pause_in_maintenance: false
+    esc_period: 120
+    conditions:
+      - type: host_metadata
+        operator: contains
+        value: Windows
+    operations:
+      - type: add_to_host_group
+        host_groups:
+          - Windows hosts
+      - type: link_to_template
+        templates:
+          - Windows by Zabbix agent
+    status: enabled
+  when: group_names[0] == "NMS"
+
+- name: Pause for 5 minutes to ensure that all hosts have been autoregistered in zabbix
+  ansible.builtin.pause:
+    minutes: 5
+
+- name: Get zabbix API authorization key
+  ansible.builtin.uri:
+    method: POST
+    url: 'http://{{ ansible_host }}/zabbix/api_jsonrpc.php'
+    validate_certs: false
+    return_content: true
+    headers:
+      Content-Type: application/json-rpc
+    body_format: json
+    body:
+      {
+        "jsonrpc": "2.0",
+        "method": "user.login",
+        "params": {
+          "username": "Admin",
+          "password": "zabbix"
+        },
+        "id":1
+      }
+  when: group_names[0] == "NMS"
+  register: zabbix_api_key
+
+- name: Get zabbix maps
+  ansible.builtin.uri:
+    method: POST
+    url: 'http://{{ ansible_host }}/zabbix/api_jsonrpc.php'
+    validate_certs: false
+    return_content: true
+    headers:
+      Content-Type: application/json-rpc
+      Authorization: Bearer {{ zabbix_api_key.json.result }}
+    body_format: json
+    body:
+      {
+        "jsonrpc": "2.0",
+        "method": "map.get",
+        "params": {
+          "output": "extend",
+          "selectSelements": "extend",
+          "selectLinks": "extend",
+          "selectUsers": "extend",
+          "selectUserGroups": "extend",
+          "selectShapes": "extend",
+          "selectLines": "extend",
+        },
+        "id": 1
+      }
+  when: group_names[0] == "NMS"
+  register: zabbix_maps_json
+
+- name: Parse map names and ids from json output
+  ansible.builtin.set_fact:
+    zabbix_maps: '{{ zabbix_maps_json.json.result | json_query(jmesquery) }}'
+  when: group_names[0] == "NMS"
+  vars:
+    jmesquery: "[*].{name: name, id: sysmapid}"
+  no_log: true
+
+- name: Check if OT Network map exists
+  ansible.builtin.set_fact:
+    ot_map_exists: true
+  loop: "{{ zabbix_maps }}"
+  when: group_names[0] == "NMS" and 'OT Network' in item.name
+
+- name: Import default map
+  vars:
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 80
+    ansible_httpapi_use_ssl: false
+    ansible_httpapi_validate_certs: false
+    ansible_user: Admin
+    ansible_httpapi_pass: zabbix
+  community.zabbix.zabbix_map:
+    name: OT Network
+    state: present
+    data: "{{ lookup('template', 'map.j2') }}"
+    default_image: Server_(64)
+    expand_problem: false
+    highlight: true
+    label_type: label
+  when: group_names[0] == "NMS" and not ot_map_exists
+
+- name: Get zabbix dashboards
+  ansible.builtin.uri:
+    method: POST
+    url: 'http://{{ ansible_host }}/zabbix/api_jsonrpc.php'
+    validate_certs: false
+    return_content: true
+    headers:
+      Content-Type: application/json-rpc
+      Authorization: Bearer {{ zabbix_api_key.json.result }}
+    body_format: json
+    body:
+      {
+        "jsonrpc": "2.0",
+        "method": "dashboard.get",
+        "params": {
+          "output": "extend",
+          "selectPages": "extend",
+          "selectUsers": "extend",
+          "selectUserGroups": "extend"
+        },
+        "id": 1
+      }
+  when: group_names[0] == "NMS"
+  register: zabbix_dashboards_json
+
+- name: Parse dashboard names and ids from json output
+  ansible.builtin.set_fact:
+    zabbix_dashboards: '{{ zabbix_dashboards_json.json.result | json_query(jmesquery) }}'
+  when: group_names[0] == "NMS"
+  vars:
+    jmesquery: "[*].{name: name, id: dashboardid}"
+  no_log: true
+
+- name: Delete zabbix default Global view dashoard
+  ansible.builtin.uri:
+    method: POST
+    url: 'http://{{ ansible_host }}/zabbix/api_jsonrpc.php'
+    validate_certs: false
+    return_content: true
+    headers:
+      Content-Type: application/json-rpc
+      Authorization: Bearer {{ zabbix_api_key.json.result }}
+    body_format: json
+    body:
+      {
+        "jsonrpc": "2.0",
+        "method": "dashboard.delete",
+        "params": [
+          "{{ item.id }}"
+        ],
+        "id": 1
+      }
+  when: group_names[0] == "NMS" and (item.name == "Global view" or item.name == "Zabbix server")
+  loop: '{{ zabbix_dashboards }}'
+  register: delete_zabbix_dashboard
+
+- name: Create Yokogawa OT Systems and custom Zabbix server dashboards
+  ansible.builtin.uri:
+    method: POST
+    url: 'http://{{ ansible_host }}/zabbix/api_jsonrpc.php'
+    validate_certs: false
+    return_content: true
+    headers:
+      Content-Type: application/json-rpc
+      Authorization: Bearer {{ zabbix_api_key.json.result }}
+    body_format: json
+    body:
+      {
+        "jsonrpc": "2.0",
+        "method": "dashboard.create",
+        "params": [
+          "{{ item }}"
+        ],
+        "id": 1
+      }
+  loop:
+    - "{{ lookup('template', 'ot_dashboard.json') }}"
+    - "{{ lookup('template', 'zabbix_server_dashboard.json') }}"
+  when: group_names[0] == "NMS"
+  register: create_zabbix_dashboards
+  no_log: true

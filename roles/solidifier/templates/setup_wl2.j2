@@ -1,0 +1,9 @@
+@echo off
+sadmin trusted -u \\{{ win_domain_name }}\NETLOGON
+sadmin trusted -u \\{{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}\NETLOGON
+sadmin trusted -u \\{{ hostvars[groups['SDC'][0]]['inventory_hostname'] }}\NETLOGON
+sadmin trusted -u C:\Windows\PSEXESVC.exe
+sadmin trusted -u \\*\SHCTProg
+sadmin trusted -u \\*\SHCTData
+sadmin trusted -u \\*\SHCTProg\1_Start_SHCT_M3.exe
+sadmin trusted -u \\*\SHCTProg\Script\SHCT.exe

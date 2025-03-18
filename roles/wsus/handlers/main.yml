@@ -1,0 +1,51 @@
+---
+- name: Fix broken WSUS on Windows Server 2022 - Step 1
+  ansible.windows.win_shell: |
+    Start-Process takeown.exe -ArgumentList '/f "C:\Program Files\Update Services\Database\VersionCheck.sql"' -Wait
+    Start-Process icacls.exe -ArgumentList '"C:\Program Files\Update Services\Database\VersionCheck.sql" /grant "{{ ansible_user }}:(F)"' -Wait
+    $contents = Get-Content "C:\Program Files\Update Services\Database\VersionCheck.sql"
+    $updatedContents = $contents -replace "(^DECLARE @scriptMinorVersion\s+ int = \(11\)$)", "DECLARE @scriptMinorVersion int = (51)"
+    Set-Content "C:\Program Files\Update Services\Database\VersionCheck.sql" -Value $updatedContents
+  changed_when: false
+
+- name: Fix broken WSUS on Windows Server 2022 - Step 2
+  ansible.windows.win_command:
+    LODCTR /R
+  failed_when: false
+
+- name: Fix broken WSUS on Windows Server 2022 - Step 3
+  ansible.windows.win_command:
+    LODCTR /R
+
+- name: Set WSUS content folder to {{ wsus_content_folder }}
+  ansible.windows.win_command: 'WsusUtil.exe postinstall CONTENT_DIR={{ wsus_content_folder }}'
+  args:
+    chdir: 'C:\Program Files\Update Services\Tools\'
+
+- name: Configure upstream server IP-address and port
+  ansible.windows.win_shell: Set-WsusServerSynchronization -UssServerName "{{ wsus_upstream_server }}" -PortNumber {{ wsus_upstream_server_port }}
+  changed_when: false
+
+- name: Restart wsusPool applicationpool
+  community.windows.win_iis_webapppool:
+    name: WsusPool
+    state: restarted
+
+- name: Delete HTTPS binding without certificate
+  ansible.windows.win_shell: Get-WebBinding -Port 8531 -Name "WSUS Administration" | Remove-WebBinding
+  changed_when: false
+
+- name: Setting SSL for WSUS Administration Subsites
+  ansible.windows.win_shell: |
+    Set-WebConfigurationProperty -Filter //security/access -name sslflags -Value "Ssl" -PSPath IIS:\ -Location "WSUS Administration/{{ item }}"
+  loop:
+    - ApiRemoting30
+    - ClientWebService
+    - DssAuthWebService
+    - ServerSyncWebService
+    - SimpleAuthWebService
+
+- name: Configure SSL flag for WSUSUTIL
+  ansible.windows.win_command: WSusUtil.exe configuressl
+  args:
+    chdir: C:\Program Files\Update Services\Tools

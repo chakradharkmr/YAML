@@ -1,0 +1,16 @@
+---
+vcredist_version:
+  - { version: 2005, name: '2005_x86', guid: '{710f4c1c-cc18-4c49-8cbf-51240c89a1a2}', parms: /q }
+  - { version: 2005, name: '2005_x64', guid: '{ad8a2fa1-06e7-4b0d-927d-6e54b3d31028}', parms: /q }
+  - { version: 2008, name: '2008_x86', guid: '{9BE518E6-ECC6-35A9-88E4-87755C07200F}', parms: /qb }
+  - { version: 2008, name: '2008_x64', guid: '{5FCE6D76-F5DC-37AB-B2B8-22AB8CEDB1D4}', parms: /qb }
+  - { version: 2010, name: '2010_x86', guid: '{F0C3E5D1-1ADE-321E-8167-68EF0DE699A5}', parms: /install /passive /norestart }
+  - { version: 2010, name: '2010_x64', guid: '{1D8E6291-B0D5-35EC-8441-6616F567A0F7}', parms: /install /passive /norestart }
+  - { version: 2012, name: '2012_x86', guid: '{B175520C-86A2-35A7-8619-86DC379688B9}', parms: /install /passive /norestart }
+  - { version: 2012, name: '2012_x64', guid: '{37B8F9C7-03FB-3253-8781-2517C99D7C00}', parms: /install /passive /norestart }
+  - { version: 2013, name: '2013_x86', guid: '{D401961D-3A20-3AC7-943B-6139D5BD490A}', parms: /install /passive /norestart }
+  - { version: 2013, name: '2013_x64', guid: '{010792BA-551A-3AC0-A7EF-0FAB4156C382}', parms: /install /passive /norestart }
+  - { version: 2022, name: '2022_x86', guid: '{C2662EFF-06E6-4FD1-9D6D-FDCA91025757}', parms: /install /passive /norestart }
+  - { version: 2022, name: '2022_x64', guid: '{CF4C347D-954E-4543-88D2-EC17F07F466F}', parms: /install /passive /norestart }
+
+# 2022 contains 2015, 2017, 2019 and 2022.

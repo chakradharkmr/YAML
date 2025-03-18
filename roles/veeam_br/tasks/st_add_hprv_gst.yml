@@ -1,0 +1,23 @@
+---
+- name: Create a Backup Job for the target computer
+  ansible.windows.win_shell: |
+    Add-PSSnapin VeeamPSSnapin
+    $repository = Get-VBRBackupRepository -Name 'Yokogawa Backup Repository'
+    Find-VBRHvEntity -Name "{{ item.name }}" |
+      Add-VBRHvBackupJob -Name "{{ item.group }}" -BackupRepository $Repository -Description "Hyper-V Backup" -ErrorAction SilentlyContinue
+    Start-Sleep 2
+    $vm = Find-VBRHvEntity -Name "{{ item.group }}"
+    $BackupHvJob = Get-VBRJob -Name "{{ item.group }}"
+    Add-VBRHvJobObject -Job $BackupHvJob -Entities $Vm
+    Start-Sleep 2
+    Get-VBRJob -Name "{{ item.group }}" |
+      Set-VBRJobSchedule -Daily -At "{{ item.time }}" -DailyKind SelectedDays -Days {{ item.day }}
+    Start-Sleep 2
+    Get-VBRJob -Name "{{ item.group }}" |
+      Enable-VBRJobSchedule
+    Start-Sleep 2
+    Get-VBRJob -Name "{{ item.group }}" |
+      Set-VBRJobAdvancedHvOptions -EnableHvQuiescence $false -CanDoCrashConsistent $false -UseChangeTracking $true -ExcludeSwapFile $true
+  register: hyperv_hosts_backup_job
+  changed_when: hyperv_hosts_backup_job.rc == 0
+  failed_when: hyperv_hosts_backup_job.rc >= 2

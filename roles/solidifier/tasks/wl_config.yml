@@ -1,0 +1,117 @@
+---
+- name: Unlock sadmin local access
+  ansible.windows.win_command: sadmin recover
+  register: sadmin_recover
+  changed_when: sadmin_recover.rc == 0
+  failed_when:
+    - sadmin_recover.rc != 0
+    - sadmin_recover.stdout_lines[0] != "Local CLI is already recovered."
+
+- name: Gathering Sadmin facts
+  ansible.windows.win_command: sadmin scripts list
+  register: sadmin_facts
+  changed_when: false
+
+- name: Disable Device Guard Compatibility
+  ansible.windows.win_command: sadmin config set DisableDeviceGuardCompat=1
+
+- name: Add java scripts .class
+  ansible.windows.win_command: sadmin scripts add .class java.exe javaw.exe
+  when: not sadmin_facts.stdout.find('.class   \"javaw.exe\" \"java.exe\"') != -1
+
+- name: Add java scripts .jar
+  ansible.windows.win_command: sadmin scripts add .jar java.exe javaw.exe
+  when: not sadmin_facts.stdout.find('.jar   \"javaw.exe\" \"java.exe\"') != -1
+
+- name: Download AutoIt
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\AutoIt
+    dest: '{{ win_local_sw_depot }}\AutoIt'
+    flags: /E
+
+- name: Deploy pre-installation AutoIt script for Solidifier
+  ansible.windows.win_template:
+    src: wl_config.au3
+    dest: '{{ solidifier_depot }}\WL_Config'
+
+- name: Deploy installation bootstrap
+  ansible.windows.win_template:
+    src: wl_config_bootstrap.j2
+    dest: '{{ solidifier_depot }}\WL_Config\wl_config_bootstrap.cmd'
+
+- name: Set RunOnce in registry to execute the installaton bootstrapper at next reboot
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce
+    name: WLconfig
+    data: '{{ solidifier_depot }}\WL_Config\wl_config_bootstrap.cmd'
+    type: string
+
+- name: Set autologon to local administrator (items hidden for security reasons)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    type: '{{ item.type }}'
+  loop: '{{ local_admin_autologon }}'
+  no_log: true
+
+- name: Disable Solidifier
+  ansible.windows.win_command: sadmin disable
+
+- name: Reboot
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy to install Solidifier at next boot
+
+- name: Create a test file on the target host
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\y-dploy_connected.test'
+    state: touch
+
+- name: Wait for Solidifier installation to start (times out after 5 minutes)
+  community.windows.win_wait_for_process:
+    process_name_exact: WL_Config
+    state: present
+    timeout: 300
+    sleep: 5
+
+- name: Wait for Solidifier installation to stop (times out after 60 minutes)
+  community.windows.win_wait_for_process:
+    process_name_exact: WL_Config
+    state: absent
+    timeout: 3600
+
+- name: Deploy additional WL configuration script
+  ansible.windows.win_template:
+    src: setup_wl2.j2
+    dest: '{{ solidifier_depot }}\WL_Config\setup_wl2.bat'
+
+- name: Run configuration scripts for Solidifier
+  ansible.windows.win_command: '{{ item }}'
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+  loop:
+    - '{{ solidifier_depot }}\WL_Config\setup_wl.bat'
+    - '{{ solidifier_depot }}\WL_Config\setup_wl2.bat'
+    - '{{ solidifier_depot }}\WL_Config\setup_KB91257.bat'
+    - '{{ solidifier_depot }}\WL_Config\Option\setup_KB91569.bat'
+    - '{{ solidifier_depot }}\WL_Config\Option\setup_av11k.bat'
+    - '{{ solidifier_depot }}\WL_Config\Option\setup_for_EQ-APP.bat'
+    - '{{ solidifier_depot }}\WL_Config\Option\setup_sql.bat'
+
+- name: Disable autologon
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    type: '{{ item.type }}'
+  loop: '{{ clear_admin_autologon }}'
+  register: auto_logon_disable
+
+- name: Enable Solidifier
+  ansible.windows.win_command: sadmin enable
+
+- name: Reboot
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy after Solidifier has been configured

@@ -1,0 +1,522 @@
+{
+    "auto_start": "1",
+    "display_period": "30",
+    "name": "Zabbix server (custom)",
+    "pages": [
+        {
+            "display_period": "0",
+            "name": "",
+            "widgets": [
+                {
+                    "fields": [
+                        {
+                            "name": "sysmapid",
+                            "type": "8",
+                            "value": "1"
+                        }
+                    ],
+                    "height": "3",
+                    "name": "",
+                    "type": "map",
+                    "view_mode": "0",
+                    "width": "7",
+                    "x": "7",
+                    "y": "4"
+                },
+                {
+                    "fields": [
+                    ],
+                    "height": "7",
+                    "name": "",
+                    "type": "systeminfo",
+                    "view_mode": "0",
+                    "width": "7",
+                    "x": "0",
+                    "y": "0"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "columns.name.0",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.data.0",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.item.0",
+                            "type": "1",
+                            "value": "System name"
+                        },
+                        {
+                            "name": "columns.aggregate_function.0",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.decimal_places.0",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.base_color.0",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.name.1",
+                            "type": "1",
+                            "value": "Utilization"
+                        },
+                        {
+                            "name": "columns.data.1",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.item.1",
+                            "type": "1",
+                            "value": "Linux: CPU utilization"
+                        },
+                        {
+                            "name": "columns.timeshift.1",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.aggregate_function.1",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.min.1",
+                            "type": "1",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.max.1",
+                            "type": "1",
+                            "value": "100"
+                        },
+                        {
+                            "name": "columns.decimal_places.1",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.display.1",
+                            "type": "0",
+                            "value": "3"
+                        },
+                        {
+                            "name": "columns.history.1",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.base_color.1",
+                            "type": "1",
+                            "value": "4CAF50"
+                        },
+                        {
+                            "name": "columnsthresholds.color.1.0",
+                            "type": "1",
+                            "value": "FFFF00"
+                        },
+                        {
+                            "name": "columnsthresholds.threshold.1.0",
+                            "type": "1",
+                            "value": "50"
+                        },
+                        {
+                            "name": "columnsthresholds.color.1.1",
+                            "type": "1",
+                            "value": "FF8000"
+                        },
+                        {
+                            "name": "columnsthresholds.threshold.1.1",
+                            "type": "1",
+                            "value": "80"
+                        },
+                        {
+                            "name": "columnsthresholds.color.1.2",
+                            "type": "1",
+                            "value": "FF4000"
+                        },
+                        {
+                            "name": "columnsthresholds.threshold.1.2",
+                            "type": "1",
+                            "value": "90"
+                        },
+                        {
+                            "name": "columns.name.2",
+                            "type": "1",
+                            "value": "1m avg"
+                        },
+                        {
+                            "name": "columns.data.2",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.item.2",
+                            "type": "1",
+                            "value": "Linux: Load average (1m avg)"
+                        },
+                        {
+                            "name": "columns.timeshift.2",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.aggregate_function.2",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.decimal_places.2",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.display.2",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.history.2",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.base_color.2",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.name.3",
+                            "type": "1",
+                            "value": "5m avg"
+                        },
+                        {
+                            "name": "columns.data.3",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.item.3",
+                            "type": "1",
+                            "value": "Linux: Load average (5m avg)"
+                        },
+                        {
+                            "name": "columns.timeshift.3",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.aggregate_function.3",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.decimal_places.3",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.display.3",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.history.3",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.base_color.3",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.name.4",
+                            "type": "1",
+                            "value": "15m avg"
+                        },
+                        {
+                            "name": "columns.data.4",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.item.4",
+                            "type": "1",
+                            "value": "Linux: Load average (15m avg)"
+                        },
+                        {
+                            "name": "columns.timeshift.4",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.aggregate_function.4",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.decimal_places.4",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "columns.display.4",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.history.4",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.base_color.4",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.name.5",
+                            "type": "1",
+                            "value": "Processes"
+                        },
+                        {
+                            "name": "columns.data.5",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.item.5",
+                            "type": "1",
+                            "value": "Linux: Number of processes"
+                        },
+                        {
+                            "name": "columns.timeshift.5",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "columns.aggregate_function.5",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.decimal_places.5",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "columns.display.5",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.history.5",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "columns.base_color.5",
+                            "type": "1",
+                            "value": ""
+                        },
+                        {
+                            "name": "column",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "groupids",
+                            "type": "2",
+                            "value": "4"
+                        },
+                        {
+                            "name": "rf_rate",
+                            "type": "0",
+                            "value": "10"
+                        }
+                    ],
+                    "height": "3",
+                    "name": "Top hosts by CPU utilization",
+                    "type": "tophosts",
+                    "view_mode": "0",
+                    "width": "14",
+                    "x": "0",
+                    "y": "7"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "itemid",
+                            "type": "4",
+                            "value": "23277"
+                        },
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "4"
+                        },
+                        {
+                            "name": "adv_conf",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "description",
+                            "type": "1",
+                            "value": "{HOST.NAME}\r\nValues per second"
+                        },
+                        {
+                            "name": "desc_bold",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "units_show",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "units_bold",
+                            "type": "0",
+                            "value": "0"
+                        }
+                    ],
+                    "height": "2",
+                    "name": "Performance",
+                    "type": "item",
+                    "view_mode": "1",
+                    "width": "3",
+                    "x": "7",
+                    "y": "0"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "ds.hosts.0.0",
+                            "type": "1",
+                            "value": "Zabbix server"
+                        },
+                        {
+                            "name": "ds.items.0.0",
+                            "type": "1",
+                            "value": "Zabbix server: Number of processed values per second"
+                        },
+                        {
+                            "name": "ds.color.0",
+                            "type": "1",
+                            "value": "90CAF9"
+                        },
+                        {
+                            "name": "graph_time",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "lefty",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "righty",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "axisx",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "legend",
+                            "type": "0",
+                            "value": "0"
+                        }
+                    ],
+                    "height": "2",
+                    "name": "",
+                    "type": "svggraph",
+                    "view_mode": "1",
+                    "width": "3",
+                    "x": "7",
+                    "y": "2"
+                },
+                {
+                    "fields": [
+                        {
+                            "name": "clock_type",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "2"
+                        },
+                        {
+                            "name": "show",
+                            "type": "0",
+                            "value": "3"
+                        },
+                        {
+                            "name": "adv_conf",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "time_size",
+                            "type": "0",
+                            "value": "40"
+                        },
+                        {
+                            "name": "time_bold",
+                            "type": "0",
+                            "value": "1"
+                        },
+                        {
+                            "name": "time_sec",
+                            "type": "0",
+                            "value": "0"
+                        },
+                        {
+                            "name": "tzone_timezone",
+                            "type": "1",
+                            "value": "Europe/Amsterdam"
+                        }
+                    ],
+                    "height": "4",
+                    "name": "Local time",
+                    "type": "clock",
+                    "view_mode": "1",
+                    "width": "4",
+                    "x": "10",
+                    "y": "0"
+                }
+            ]
+        }
+    ],
+    "private": "1",
+    "userGroups": [],
+    "users": []
+}

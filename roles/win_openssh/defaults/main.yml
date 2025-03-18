@@ -1,0 +1,64 @@
+---
+openssh_extract_dir: 'C:\OpenSSH'
+
+# Openssh daemon configuration (sshd_config)
+openssh_sshd_ports:
+  - 22
+openssh_sshd_listen_addresses:
+  - "0.0.0.0"
+  - "::"
+openssh_sshd_protocol: 2
+openssh_sshd_host_keys:
+  - \\ssh_host_rsa_key
+  - \\ssh_host_dsa_key
+  - \\ssh_host_ecdsa_key
+
+# Openssh daemon logging configuration (sshd_config)
+openssh_sshd_syslog_facility: AUTH
+openssh_sshd_log_level: INFO
+
+# Openssh daemon authentication configuration (sshd_config)
+openssh_sshd_login_grace_time: "2m"
+openssh_sshd_permit_root_login: true
+openssh_sshd_strict_modes: true
+openssh_sshd_max_auth_tries: 6
+openssh_sshd_max_sessions: 10
+openssh_sshd_rsa_authentication: true
+openssh_sshd_pubkey_authentication: true
+
+openssh_sshd_authorized_keys_file: ".ssh/authorized_keys"
+openssh_sshd_rhosts_rsa_authentication: false
+openssh_sshd_host_based_authentication: false
+openssh_sshd_ignore_user_known_hosts: false
+openssh_sshd_ignore_rhosts: true
+
+openssh_sshd_password_authentication: true
+openssh_sshd_permit_empty_passwords: false
+openssh_sshd_challenge_response_authentication: true
+
+openssh_sshd_allow_agent_forwarding: true
+openssh_sshd_allow_tcp_forwarding: true
+openssh_sshd_gateway_ports: false
+openssh_sshd_x11_forwarding: false
+openssh_sshd_x11_display_offset: 10
+openssh_sshd_x11_use_localhost: true
+openssh_sshd_print_motd: true
+openssh_sshd_print_last_log: true
+openssh_sshd_tcp_keep_alive: true
+openssh_sshd_use_login: false
+openssh_sshd_use_privilege_separation: true
+openssh_sshd_permit_user_environment: false
+openssh_sshd_compression: delayed
+openssh_sshd_client_alive_interval: 0
+openssh_sshd_client_alive_count_max: 3
+openssh_sshd_use_dns: true
+openssh_sshd_pid_file: /var/run/sshd.pid
+openssh_sshd_max_startups: 10
+openssh_sshd_permit_tunnel: false
+openssh_sshd_chroot_directory: none
+
+openssh_sshd_banner: none
+
+openssh_sshd_subsystems:
+  sftp: C:\OpenSSH\OpenSSH-Win64\sftp-server.exe
+  scp: C:\OpenSSH\OpenSSH-Win64\scp.exe

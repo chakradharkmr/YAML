@@ -1,0 +1,34 @@
+---
+# no_log parameter is set to suppress clear-text display of passwords in the output
+- name: Create local user accounts
+  ansible.windows.win_user:
+    name: '{{ item.name }}'
+    password: '{{ item.password }}'
+    description: '{{ item.descr }}'
+    password_never_expires: true
+    state: present
+    groups:
+      - Users
+      - Administrators
+  no_log: true
+  loop:
+    - { name: '{{ win_local_admin }}', password: '{{ win_local_admin_pw }}', descr: '{{ win_local_admin_descr }}' }
+    - { name: '{{ win_backup_admin }}', password: '{{ win_backup_admin_pw }}', descr: '{{ win_backup_admin_descr }}' }
+
+- name: Set local built-in Administrator account's password and disable the account
+  ansible.windows.win_user:
+    name: '{{ win_local_builtin_admin }}'
+    password: '{{ win_local_builtin_admin_pw }}'
+    account_disabled: true
+
+- name: Re-check if I joined a domain
+  ansible.builtin.setup:
+    filter: 'ansible_windows_domain_member'
+
+- name: Add to the local administrator group domain user {{ win_domain_backupservice }}
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - '{{ win_domain_name }}\{{ win_domain_backupservice }}'
+    state: present
+  when: ansible_windows_domain_member

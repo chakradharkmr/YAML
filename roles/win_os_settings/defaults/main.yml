@@ -1,0 +1,3 @@
+---
+win_primary_dnsserver: "{{ hostvars[groups['PDC'][0]]['ansible_host'] }}"
+win_secondary_dnsserver: "{{ hostvars[groups['SDC'][0]]['ansible_host'] }}"

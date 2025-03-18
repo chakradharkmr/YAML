@@ -1,0 +1,45 @@
+---
+- name: Set current user custom regional settings
+  ansible.windows.win_regedit:
+    path: HKCU:\Control Panel\International
+    name: '{{ item.name }}'
+    type: string
+    data: '{{ item.data }}'
+  loop: '{{ custom_regional_settings }}'
+
+- name: Set domain Admin User custom regional settings
+  ansible.windows.win_regedit:
+    path: HKCU:\Control Panel\International
+    name: '{{ item.name }}'
+    type: string
+    data: '{{ item.data }}'
+  loop: '{{ custom_regional_settings }}'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_admin }}'
+    ansible_become_pass: '{{ win_domain_admin_pw }}'
+  when: inventory_hostname in groups['PDC'] or inventory_hostname in groups['SDC']
+
+- name: Set local Admin User custom regional settings
+  ansible.windows.win_regedit:
+    path: HKCU:\Control Panel\International
+    name: '{{ item.name }}'
+    type: string
+    data: '{{ item.data }}'
+  loop: '{{ custom_regional_settings }}'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+  when: inventory_hostname not in groups['PDC'] and inventory_hostname not in groups['SDC']
+
+- name: Set New User custom regional settings
+  ansible.windows.win_regedit:
+    path: HKLM:\ANSIBLE\Control Panel\International
+    name: '{{ item.name }}'
+    type: string
+    data: '{{ item.data }}'
+    hive: C:\Users\Default\NTUSER.dat
+  loop: '{{ custom_regional_settings }}'

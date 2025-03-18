@@ -1,0 +1,22 @@
+---
+# Shared folder details are set in the vars file of this role
+- name: Create group folders in {{ win_local_sw_depot }}
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot | win_dirname }}\{{ item.name }}'
+    state: directory
+  loop: '{{ shared_folders }}'
+  when: item.group is not defined or (groups[item.group] is defined and groups[item.group] | length > 0)
+
+- name: Add security groups to group folders sharing permissions
+  ansible.windows.win_share:
+    name: '{{ item.name }}'
+    path: '{{ win_local_sw_depot | win_dirname }}\{{ item.name }}'
+    full: '{{ item.full }}'
+    rule_action: add
+  loop: '{{ shared_folders }}'
+  when: item.group is not defined or (groups[item.group] is defined and groups[item.group] | length > 0)
+
+- name: Download project password file to Yokogawa Fileserver
+  ansible.windows.win_copy:
+    src: "{{ keepass_dbx }}"
+    dest: '{{ win_local_sw_depot | win_dirname }}\KeepassDB\'

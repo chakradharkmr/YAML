@@ -1,0 +1,45 @@
+---
+- name: Setting patch folder (from ISO)
+  ansible.builtin.set_fact:
+    patch_folder: 'Updates'
+
+- name: Stopping Veeam backup shell if needed
+  ansible.windows.win_shell: |
+    if ((Get-Process -Name Veeam.Backup.Shell -ErrorAction SilentlyContinue) -eq $Null) {
+    Write-Host Veeam.Backup.Shell is STOPPED}
+    ELSE {
+    Write-Host Veeam.Backup.Shell is RUNNING; Stop-Process -Name  Veeam.Backup.Shell}
+  register: veeamshell
+  changed_when: veeamshell.stdout_lines[0] == 'Veeam.Backup.Shell is RUNNING'
+
+- name: Stopping all Veeam Services prior to running the update
+  ansible.windows.win_service:
+    name: "{{ item }}"
+    state: Stopped
+  loop:
+    - VeeamBackupCdpSvc
+    - VeeamBackupRESTSvc
+    - VeeamBackupSvc
+    - VeeamBrokerSvc
+    - VeeamCatalogSvc
+    - VeeamCloudSvc
+    - VeeamDeploySvc
+    - VeeamDistributionSvc
+    - VeeamExplorersRecoverySvc
+    - VeeamFilesysVssSvc
+    - VeeamMountSvc
+    - VeeamNFSSvc
+    - VeeamTransportSvc
+    - VeeamVssProviderSvc
+
+- name: Install VBR patch
+  ansible.windows.win_package:
+    path: '{{ local_vbr_depot }}\{{ patch_folder }}\{{ patch_file }}'
+    arguments:
+      /silent
+      /noreboot
+      /log "{{ local_vbr_depot }}\{{ patch_file }}.log"
+      VBR_AUTO_UPGRADE="1"
+
+- name: Reboot
+  ansible.windows.win_reboot:

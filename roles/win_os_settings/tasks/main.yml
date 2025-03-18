@@ -1,0 +1,233 @@
+---
+- name: Set domain built-in Administrator password
+  ansible.windows.win_user:
+    name: '{{ win_domain_admin }}'
+    password: '{{ win_domain_admin_pw }}'
+  when: inventory_hostname in groups['PDC'] or inventory_hostname in groups['SDC']
+
+- name: Set local built-in Administrator password
+  ansible.windows.win_user:
+    name: '{{ win_local_admin }}'
+    password: '{{ win_local_admin_pw }}'
+  when: inventory_hostname not in groups['PDC'] and inventory_hostname not in groups['SDC']
+
+- name: Disable Windows Defender on Windows Server
+  ansible.windows.win_feature:
+    name: Windows-Defender
+    state: absent
+  when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1
+
+- name: Disable Server Manager on login
+  community.windows.win_scheduled_task:
+    name: ServerManager
+    path: \Microsoft\Windows\Server Manager
+    enabled: false
+  when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1
+
+- name: Get name of network adapter via IP-address
+  ansible.windows.win_shell: |
+      $NetIPConfiguration = Get-NetIPConfiguration | Select -ExpandProperty IPv4Address |
+      Where-Object IPAddress -eq '{{ ansible_host }}'; Write-Host $NetIPConfiguration.InterfaceAlias
+  changed_when: false
+  register: target_host_nic_name
+  failed_when: target_host_nic_name.stdout_lines[0] | length < 1
+
+- name: Set connection profile to Private
+  ansible.windows.win_shell: |
+    $ifIndex = Get-NetIPInterface | where {($_.InterfaceAlias -eq '{{ target_host_nic_name.stdout_lines[0] }}')
+    -and ($_.AddressFamily -eq 'IPv4')} | Select-Object ifIndex
+    $current_category = Get-NetConnectionProfile -InterfaceIndex $ifIndex.ifIndex | Select-Object NetworkCategory
+    if ($current_category.NetworkCategory -ne 'Public') {
+      Write-Host 'INFO - Profile already set to Private or DomainAuthenticated'
+    } else {
+      Write-Host 'SUCCESS - Profile set to Private'
+      Set-NetConnectionProfile -InterfaceIndex $ifIndex.ifIndex -NetworkCategory 'Private'
+    }
+  register: set_conn_profile
+  changed_when: set_conn_profile.stdout_lines[0] == 'SUCCESS - Profile set to Private'
+  ignore_unreachable: true
+
+- name: Set DNS servers
+  ansible.windows.win_dns_client:
+    adapter_names: '{{ target_host_nic_name.stdout_lines[0] }}'
+    ipv4_addresses:
+      - '{{ win_primary_dnsserver }}'
+      - '{{ win_secondary_dnsserver }}'
+  when: using_active_directory
+
+- name: Set region to {{ win_proj_region }}
+  community.windows.win_region.win_region:
+    format: '{{ win_proj_region }}'
+    copy_settings: true
+
+- name: Set timezone to {{ win_proj_timezone }}
+  community.windows.win_region.win_timezone:
+    timezone: '{{ win_proj_timezone }}'
+
+- name: Set hostname according to inventory
+  ansible.windows.win_hostname:
+    name: '{{ inventory_hostname }}'
+  register: hostname_status
+
+- name: Disable TCP/IP v6 protocol on all adapters
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip6 } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - TCP/IP v6 protocol disabled on all adapters'
+      Get-NetAdapter | foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip6 }
+    } else {
+      Write-Host 'INFO - TCP/IP v6 protocol already disabled on all adapters'
+    }
+  register: disable_tcpipv6
+  changed_when: disable_tcpipv6.stdout_lines[0] == 'SUCCESS - TCP/IP v6 protocol disabled on all adapters'
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: hostname_status.reboot_required
+
+- name: Disable NetBIOS over TCP/IP on all interfaces
+  ansible.windows.win_powershell:
+    script: |
+      $nbtRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces"
+      $nbtRegKey = "NetbiosOptions"
+      $nbtRegKeyValue = 2
+      $nics = Get-ChildItem $nbtRegPath
+      Foreach ( $nic in $nics ) {
+        $nbtReg = $nbtRegPath + "\" + $nic.PSChildName
+        Set-ItemProperty $nbtReg -Name $nbtRegKey -Value $nbtRegKeyValue
+      }
+  changed_when: false
+
+- name: Create FW rule for allowing SMB-IN
+  community.windows.win_firewall_rule:
+    name: SMB - Allow incoming SMB requests
+    enabled: true
+    localport: '445'
+    action: allow
+    direction: in
+    protocol: tcp
+    profiles: domain, private
+    state: present
+
+- name: Enable FW rule for allowing ICMP v4 (ping)
+  community.windows.win_firewall_rule:
+    name: ICMP - Allow incoming IPv4 echo requests
+    enabled: true
+    action: allow
+    direction: in
+    protocol: icmpv4
+    profiles: domain, private
+    state: present
+
+- name: Install DELL Open Manage Server Administrator if target is a physical DELL computer
+  ansible.builtin.include_role:
+    name: omsa
+  when: ansible_facts['system_vendor'] == "Dell Inc."
+
+- name: Install .NET 4.7.2 for VEEAM if node is not a Hyper-V guest VM
+  ansible.builtin.include_role:
+    name: ms_dotnet
+  when: ansible_facts['virtualization_role'] != "guest"
+
+- name: Set registry settings for the computer
+  ansible.windows.win_regedit:
+    path: '{{ item.path }}'
+    name: '{{ item.name }}'
+    type: '{{ item.type }}'
+    data: '{{ item.data }}'
+  loop: '{{ registry_hklm }}'
+
+- name: Set registry settings for current user
+  ansible.windows.win_regedit:
+    path: '{{ item.path }}'
+    name: '{{ item.name }}'
+    type: '{{ item.type }}'
+    data: '{{ item.data }}'
+  loop: '{{ registry_hkcu }}'
+
+- name: Set registry settings for domain built-in Administrator
+  ansible.windows.win_regedit:
+    path: '{{ item.path }}'
+    name: '{{ item.name }}'
+    type: '{{ item.type }}'
+    data: '{{ item.data }}'
+  loop: '{{ registry_hkcu }}'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_admin }}'
+    ansible_become_pass: '{{ win_domain_admin_pw }}'
+  when: inventory_hostname in groups['PDC'] or inventory_hostname in groups['SDC']
+
+- name: Set registry settings for local built-in Administrator
+  ansible.windows.win_regedit:
+    path: '{{ item.path }}'
+    name: '{{ item.name }}'
+    type: '{{ item.type }}'
+    data: '{{ item.data }}'
+  loop: '{{ registry_hkcu }}'
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+  when: inventory_hostname not in groups['PDC'] and inventory_hostname not in groups['SDC']
+
+- name: Set registry settings for all new users
+  ansible.windows.win_regedit:
+    path: '{{ item.path }}'
+    name: '{{ item.name }}'
+    type: '{{ item.type }}'
+    data: '{{ item.data }}'
+    hive: C:\Users\Default\NTUSER.dat
+  loop: '{{ registry_hkcu }}'
+
+- name: Delete Desktop.ini files from the Desktop of all users
+  ansible.windows.win_shell: |
+    Get-ChildItem -Path C:\Users\ -Filter Desktop -Depth 2 -Force -ErrorAction SilentlyContinue | Select-Object FullName |
+    foreach {
+      Get-ChildItem -Recurse -Path $_.FullName -Filter Desktop.ini -Depth 1 -Force -ErrorAction SilentlyContinue |
+      Select-Object FullName |
+      foreach {
+        Remove-Item $_.FullName -Force
+      }
+    }
+  changed_when: false
+
+# === In Windows 10 LTSC 2019 and higher, SMBv1 is disabled by default ===
+- name: Disable SMBv1 on Windows Workstations
+  ansible.windows.win_optional_feature:
+    name: SMB1Protocol
+    state: absent
+  when: ansible_facts['os_product_type'] == "workstation" and ansible_facts['kernel'].split(".")[2] | int < 17763
+
+# === In Server 2019 and higher, SMBv1 is disabled by default ===
+- name: Disable SMBv1 on Windows Servers
+  ansible.windows.win_feature:
+    name: FS-SMB1
+    state: absent
+    include_sub_features: true
+  when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1 and ansible_facts['kernel'].split(".")[2] | int < 17763
+
+# PowerShell 2.0 is no longer supported, but the client is still enabled in Workstation OS
+- name: Disable PowerShell 2.0 Engine (workstations)
+  ansible.windows.win_optional_feature:
+    name: MicrosoftWindowsPowerShellV2
+    state: absent
+  when: ansible_facts['os_product_type'] == "workstation"
+
+# # === From Server 2022, PowerShell 2.0 support is disabled by default ===
+# - name: Disable PowerShell 2.0 Engine (servers)
+#   ansible.windows.win_optional_feature:
+#     name: PowerShell-V2
+#     state: absent
+#   when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1 and ansible_facts['kernel'].split(".")[2] | int < 20348
+
+- name: Set StateRepository service to manual to prevent alarms in NMS systems
+  ansible.windows.win_powershell:
+    script: sc config StateRepository start=demand
+  when: ansible_facts['os_name'].find('Microsoft Windows Server') != -1
+  changed_when: false
+
+- name: Set Custom Regional Settings
+  ansible.builtin.include_tasks: st_custom_regional_settings.yml
+  when: set_custom_regional_settings

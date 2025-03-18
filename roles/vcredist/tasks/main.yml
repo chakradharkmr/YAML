@@ -1,0 +1,20 @@
+---
+- name: Download Microsoft Visual C++ Redistributables
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\vcredist
+    dest: '{{ win_local_sw_depot }}\vcredist'
+    flags: /E
+
+- name: Install Microsoft Visual C++ Redistributables
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\vcredist\vcredist_{{ item.name }}.exe'
+    product_id: '{{ item.guid }}'
+    arguments: '{{ item.parms }}'
+  ignore_errors: true
+  register: vcredists
+  loop: '{{ vcredist_version }}'
+  when: item.version in vcredist_versions
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: vcredists.changed

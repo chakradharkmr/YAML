@@ -1,0 +1,5 @@
+---
+- name: Create local software depot
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}'
+    state: directory

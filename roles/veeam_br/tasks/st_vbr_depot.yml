@@ -1,0 +1,26 @@
+- name: Download Veeam ISO {{ vbr_iso_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\VeeamBackupAndReplication\{{ vbr_iso_version }}
+    dest: '{{ local_vbr_depot }}'
+    flags: /E
+
+- name: Mount Veeam ISO {{ vbr_iso_version }}
+  community.windows.win_disk_image:
+    image_path: '{{ local_vbr_depot }}\VeeamBackup&Replication_{{ vbr_iso_version }}.iso'
+  register: veeam_image_out
+
+- name: Copy files from mounted iso to local depot
+  community.windows.win_robocopy:
+    src: '{{ veeam_image_out.mount_paths[0] }}'
+    dest: '{{ local_vbr_depot }}'
+    flags: /S /ZB /R:5 /W:5
+
+- name: Unmount Veeam ISO {{ vbr_iso_version }}
+  community.windows.win_disk_image:
+    image_path: '{{ local_vbr_depot }}\VeeamBackup&Replication_{{ vbr_iso_version }}.iso'
+    state: absent
+
+- name: Delete Veeam ISO {{ vbr_iso_version }}
+  ansible.windows.win_file:
+    path: '{{ local_vbr_depot }}\VeeamBackup&Replication_{{ vbr_iso_version }}.iso'
+    state: absent

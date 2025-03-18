@@ -1,0 +1,32 @@
+---
+- name: Create Backup Credentials in Veeam to access hosts
+  ansible.windows.win_shell: |
+    Connect-VBRServer -Server localhost
+      if (Get-VBRCredentials -Name '{{ win_domain_name }}\{{ win_domain_backupservice }}') {
+        echo VeeamCredentialsExist
+      } else {
+        Add-VBRCredentials `
+          -Type Windows `
+          -User '{{ win_domain_name }}\{{ win_domain_backupservice }}' `
+          -Password "{{ win_domain_backupservice_pw }}" `
+          -Description "Domain Backup account (created by Y-dPloy)."
+      }
+    Disconnect-VBRServer
+  register: veeam_backup_user
+  changed_when: veeam_backup_user.stdout.find('VeeamCredentialsExist')
+
+- name: Create Veeam Backup Repository
+  ansible.windows.win_shell: |
+    Connect-VBRServer -Server localhost
+      if (Get-VBRBackupRepository -Name 'Yokogawa Backup Repository') {
+        echo YokoRepoExist
+      } else {
+        Add-VBRBackupRepository `
+          -Type WinLocal `
+          -Name 'Yokogawa Backup Repository' `
+          -Folder "{{ veeam_repository_location }}" `
+          -Description "Yokogawa Backup Repository (created by Y-dPloy)"
+      }
+    Disconnect-VBRServer
+  register: veeam_backup_repo
+  changed_when: veeam_backup_repo.stdout.find('YokoRepoExist')

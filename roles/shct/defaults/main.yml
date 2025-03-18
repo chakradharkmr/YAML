@@ -1,0 +1,20 @@
+---
+shct_revision: R4.01.02
+local_shct_depot: C:\SHCT
+shct_shares:
+  - { name: SHCTProg,
+      description: SHCT Program share,
+      path: '{{ local_shct_depot }}\Program',
+      list: true,
+      change: '',
+      read: Administrators,
+      caching_mode: None }
+  - { name: SHCTData,
+      description: SHCT Data share,
+      path: '{{ local_shct_depot }}\Data',
+      list: true,
+      change: Administrators,
+      read: '',
+      caching_mode: None }
+# RevInf.exe executable time-out (in msec). 43200000 msec = 12 hours.
+revinf_max_exec_time: 43200000

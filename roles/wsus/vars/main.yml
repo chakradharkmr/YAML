@@ -1,0 +1,22 @@
+---
+local_wsus_depot: '{{ win_local_sw_depot }}\WSUS'
+set_wsus_max_memory: true
+set_wsus_max_xml_per_request_to_unlimited: true
+wsus_restart_private_memory_limit: 4000000
+
+# C is for Country
+cert_c: NL
+# S is for State. Using NL still
+cert_s: NL
+# O is for Organization
+cert_o: Yokogawa
+# OU is organizational unit
+cert_ou: OT
+# L is for Location
+cert_l: Amersfoort
+
+pdc_hostname: '{{ hostvars[groups["PDC"][0]]["inventory_hostname"] }}'
+
+config_parameter_1: -config {{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}
+config_parameter_2: \{{ win_domain_name.split(".")[0] }}-{{ pdc_hostname }}-CA
+submit_parameter: -submit \\{{ pdc_hostname }}\PNSD\certs\wsushttps.csr \\{{ pdc_hostname }}\PNSD\certs\wsushttps.cer

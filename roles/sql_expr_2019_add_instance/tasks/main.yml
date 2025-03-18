@@ -1,0 +1,81 @@
+---
+# This role is added to keep the installation idempotent while allowing installation of another SQL Instance
+- name: Download SQLExpress 2019 installation files
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\SQLEXPR_x64_ENU_2019
+    dest: '{{ win_local_sw_depot }}\SQLEXPR_x64_ENU_2019'
+    flags: /E
+
+- name: Check if the instance exists - {{ sql_instance }}
+  ansible.windows.win_service:
+    name: 'SQL Server ({{ sql_instance }})'
+  register: instance_service_info
+
+- name: SQL - Add SQL Express 2019 Instance - {{ sql_instance }}
+  ansible.windows.win_command: >-
+    {{ win_local_sw_depot }}\SQLEXPR_x64_ENU_2019\SETUP.EXE
+    /QUIET="true"
+    /QUIETSIMPLE="false"
+    /ACTION="Install"
+    /ROLE="AllFeatures_WithDefaults"
+    /ENU="true"
+    /SUPPRESSPRIVACYSTATEMENTNOTICE="true"
+    /IACCEPTSQLSERVERLICENSETERMS="true"
+    /IACCEPTPYTHONLICENSETERMS="true"
+    /IACCEPTROPENLICENSETERMS="true"
+    /UpdateEnabled="false"
+    /USEMICROSOFTUPDATE="false"
+    /UpdateSource="MU"
+    /FEATURES=SQLENGINE,REPLICATION
+    /HELP="false"
+    /INDICATEPROGRESS="false"
+    /INSTANCEID="{{ sql_instance }}"
+    /INSTANCENAME="{{ sql_instance }}"
+    /AGTSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE"
+    /AGTSVCSTARTUPTYPE="Disabled"
+    /BROWSERSVCSTARTUPTYPE="Automatic"
+    /ADDCURRENTUSERASSQLADMIN="true"
+    /ENABLERANU="true"
+    /SQLSYSADMINACCOUNTS="{{ win_local_admin }}"
+    /SECURITYMODE=SQL
+    /SAPWD="{{ sql_sa_acc_pw }}"
+    /SQLSVCSTARTUPTYPE="Automatic"
+    /ISSVCACCOUNT="NT AUTHORITY\NETWORK SERVICE"
+    /ISSVCStartupType="Automatic"
+    /SQLSVCINSTANTFILEINIT="false"
+    /TCPENABLED="1"
+    /NPENABLED="1"
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_local_admin }}'
+    ansible_become_pass: '{{ win_local_admin_pw }}'
+  when: not instance_service_info.exists
+  register: sql_exp_2019_instance
+
+- name: Set dynamic port for sql instance on all ip-addresses
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Microsoft\Microsoft SQL Server\MSSQL15.{{ sql_instance }}\MSSQLServer\SuperSocketNetLib\Tcp\IPAll
+    name: TcpDynamicPorts
+    data: '{{ sql_inst_tcp_port }}'
+    type: string
+  register: set_tcp_dynamic_port
+
+- name: Restart sql service MSSQL${{ sql_instance }}
+  ansible.windows.win_service:
+    name: MSSQL${{ sql_instance }}
+    state: restarted
+  when: set_tcp_dynamic_port.data_changed
+
+- name: Add firewall rule to allow access to the new SQL server instance {{ sql_instance }}
+  community.windows.win_firewall_rule:
+    name: _Allow access to SQL instance {{ sql_instance }}
+    program: 'C:\Program Files\Microsoft SQL Server\MSSQL15.{{ sql_instance }}\MSSQL\Binn\sqlservr.exe'
+    action: allow
+    profiles: 'domain,private,public'
+    direction: in
+    protocol: tcp
+    port: '{{ sql_inst_tcp_port }}'
+    state: present
+    enabled: true
+  when: sql_exp_2019_instance is succeeded
