@@ -1,0 +1,11 @@
+---
+- name: Download MS OLE DB Driver for SQL Server
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\MSOLEDB
+    dest: '{{ win_local_sw_depot }}\MSOLEDB'
+    flags: /E
+
+- name: Install MS OLE DB Driver for SQL Server
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\MSOLEDB\msoledbsql_x64.msi'
+    state: present

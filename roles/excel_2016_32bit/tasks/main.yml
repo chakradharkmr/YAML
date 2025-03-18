@@ -1,0 +1,18 @@
+---
+- name: Download Excel 2016 x32
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\excel_2016_x32
+    dest: '{{ win_local_sw_depot }}\excel_2016_x32'
+    flags: /E
+
+# The MSP file defines how to install Excel. Default installation with all features
+- name: Install Excel 2016 x32
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\excel_2016_x32\setup.exe'
+    arguments: '/adminfile silentinstall.MSP'
+    product_id: '{90160000-0016-0000-0000-0000000FF1CE}'
+  register: excel
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: excel.reboot_required

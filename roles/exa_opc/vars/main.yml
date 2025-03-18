@@ -1,0 +1,46 @@
+---
+local_exaopc_depot: '{{ win_local_sw_depot }}\EXA-OPC\{{ exaopc_revision }}'
+
+centum_vp_install:
+  install_type: Install
+  package_type: '{{ vp_package_type }}'
+  cs3k_top_path: C:\CENTUMVP
+  location_of_project_database: "{{ hostvars[groups['CENTUM'][0]]['inventory_hostname_short'] }}"
+  console_type: "General PC"
+  touch_use: "0"
+  touch_confirm: "0"
+  upper_panel: "0"
+  lower_panel: "0"
+  touch_set: "0"
+  port_no: " "
+  install_vnetip_driver: "Yes"
+  install_vnetip_open_driver: "Yes"
+  opkb_driver: "No"
+  his_rs_driver: "No"
+  his_ras_driver: "No"
+  organization: Yokogawa
+  clean_up_auto_deployment_files: "Yes"
+  execute_it_security: "No"
+
+it_security:
+  model: standard
+  user_management: "{{ 'domain' if using_active_directory else 'standalone' }}"
+  it_security_version: "2.0"
+  title: IT Security Tool - Setup
+  next_button_caption: "Next"
+  confirm_settings_title: Confirm Setting Item
+  cancel_button_caption: "Cancel"
+  restart_now_button_caption: "Restart now"
+  finish_button_caption: "Finish"
+  dialog_title: IT Security Tool
+  dialog_yes_button_caption: "&Yes"
+  legacy: Legacy Model
+  standard: Standard Model
+  strengthened: Strengthened Model
+  standalone: Standalone Management
+  domain: Domain Management
+  combination: Combination Management
+  # path: '%ProgramFiles(x86)%\Yokogawa\IA\iPCS\Platform\SECURITY\PROGRAM\Yokogawa.IA.iPCS.Platform.Security.ITSecurityTool.exe'
+  path: '{{ win_local_sw_depot }}\CENTUM-VP\{{ ctmvp_revision }}\CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.ITSecurityTool.exe'
+  options: '/N /NM /R 3'
+  restart: "No"

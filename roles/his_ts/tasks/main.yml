@@ -1,0 +1,64 @@
+---
+- name: Install Remote Desktop Services and Licensing server
+  ansible.windows.win_feature:
+    name:
+      - RDS-RD-Server
+      - RSAT-RDS-Licensing-Diagnosis-UI
+      - RDS-Licensing
+      - RDS-Licensing-UI
+    state: present
+    include_management_tools: true
+  register: rds_status
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: rds_status.reboot_required
+
+- name: Setting Per device licensing
+  ansible.windows.win_shell: (gwmi -Class Win32_TerminalServiceSetting -Namespace root\cimv2\TerminalServices).ChangeMode(2)
+  when: rds_cal_license == 'device'
+
+- name: Setting Per user licensing
+  ansible.windows.win_shell: '(gwmi -Class Win32_TerminalServiceSetting -Namespace root\cimv2\TerminalServices).ChangeMode(4)'
+  when: rds_cal_license == 'user'
+
+- name: Setting Licensing Server
+  ansible.windows.win_shell: |
+    (gwmi -Class Win32_TerminalServiceSetting -Namespace root\cimv2\TerminalServices).SetSpecifiedLicenseServerList("{{ licensing_server }}")
+
+- name: Setting fdisableCam according to Centum manual
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Policies\microsoft\Windows NT\Terminal Services
+    name: fDisableCam
+    data: 0
+    type: dword
+
+- name: Setting fDisableAudioCapture according to Centum manual
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Policies\microsoft\Windows NT\Terminal Services
+    name: fDisableAudioCapture
+    data: 0
+    type: dword
+
+- name: Setting fAllowDesktopCompositionOnServer according to Centum manual
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Policies\microsoft\Windows NT\Terminal Services
+    name: fAllowDesktopCompositionOnServer
+    data: 0
+    type: dword
+
+- name: Enabling sound Service for Remote Desktop Sessions
+  ansible.windows.win_service:
+    name: Audiosrv
+    start_mode: auto
+    state: started
+
+- name: Running system sound service
+  community.windows.win_scheduled_task:
+    name: SystemSoundsService
+    path: \Microsoft\Windows\Multimedia
+    enabled: true
+
+- name: Activate RDS and CALs
+  ansible.builtin.debug:
+    msg: "Don't forget to activate the RDS server and activate applicable CALs"

@@ -1,0 +1,87 @@
+---
+- name: Create folder for OMSA
+  ansible.windows.win_file:
+    path: '{{ omsa_depot }}'
+    state: directory
+
+- name: Download installation files for OMSA {{ omsa_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\OMSA-x64\{{ omsa_version }}
+    dest: '{{ omsa_depot }}'
+    flags: /E
+
+- name: Run prerequisite checker for OMSA {{ omsa_version }}
+  ansible.windows.win_package:
+    path: '{{ omsa_depot }}\{{ omsa_version }}\windows\PreReqChecker\RunPreReqChecks.exe'
+    product_id: 'RunPreReqChecks Application'
+    arguments: '/s'
+    state: present
+    expected_return_code: [0, 2]
+  changed_when: false
+
+- name: Check OMSA prerequisites
+  ansible.windows.win_shell: |
+    $ie = Select-String -Path "$env:TEMP\omprereq.htm" -Pattern 'does not support Internet Explorer version 6'
+     if( $ie.Length -gt 0 ) {Write-Host 'false'} else {Write-Host 'true'}
+    $https = Select-String -Path "$env:TEMP\omprereq.htm" -Pattern 'the HTTPS listener is not configured'
+     if( $https.Length -gt 0 ) {Write-Host 'false'} else {Write-Host 'true'}
+    $snmp = Select-String -Path "$env:TEMP\omprereq.htm" -Pattern 'SNMP is not installed'
+     if( $snmp.Length -gt 0 ) {Write-Host 'false'} else {Write-Host 'true'}
+    $bcom = Select-String -Path "$env:TEMP\omprereq.htm" -Pattern 'You should install the 64-bit version of Broadcom'
+     if( $bcom.Length -gt 0 ) {Write-Host 'true'} else {Write-Host 'false'}
+  changed_when: false
+  register: omsa_prerequisites
+
+- name: Check WinRm HTTPS Listener
+  ansible.windows.win_shell: |
+    $winrm_https = Get-WSManInstance -ResourceURI winrm/config/listener -SelectorSet @{Address="*";Transport="https"} -ErrorAction Stop | Select-Object Enabled
+    Write-Host $winrm_https.Enabled.ToString()
+  changed_when: false
+  register: https_listener
+
+- name: Set dynamic facts
+  ansible.builtin.set_fact:
+    winrm_http_listener: "{{ https_listener.stdout_lines[0] }}"
+    ie_supported: "{{ omsa_prerequisites.stdout_lines[0] }}"
+    winrm_https_enabled: "{{ omsa_prerequisites.stdout_lines[1] }}"
+    snmp_installed: "{{ omsa_prerequisites.stdout_lines[2] }}"
+    bcom_sw_missing: "{{ omsa_prerequisites.stdout_lines[3] }}"
+
+- name: Run installer for OMSA {{ omsa_version }}
+  ansible.windows.win_package:
+    path: '{{ omsa_depot }}\{{ omsa_version }}\windows\SystemsManagementx64\SysMgmtx64.msi'
+    product_id: '{F1521C4D-0D4D-405A-8D7D-E69295ECB205}'
+    arguments: ADDLOCAL=SA,IWS,OMSM
+    state: present
+
+- name: Install Broadcom software
+  ansible.windows.win_package:
+    path: '{{ omsa_depot }}\{{ omsa_version }}\windows\SystemsManagementx64\SysMgmtx64.msi'
+    product_id: '{F1521C4D-0D4D-405A-8D7D-E69295ECB205}'
+    arguments: ADDLOCAL=BRCM
+    state: present
+  when: bcom_sw_missing
+
+- name: Disable IE Enhanced Security
+  ansible.windows.win_shell: |
+    function Disable-InternetExplorerESC {
+      $AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
+      $UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
+      Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0 -Force
+      Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0 -Force
+      Rundll32 iesetup.dll, IEHardenLMSettings
+      Rundll32 iesetup.dll, IEHardenUser
+      Rundll32 iesetup.dll, IEHardenAdmin
+    }
+    Disable-InternetExplorerESC
+  changed_when: false
+
+- name: Add local machine to trusted zone
+  ansible.windows.win_shell: |
+    set-location "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    set-location ZoneMap\Domains
+    new-item '{{ ansible_hostname }}'/ -Force
+    set-location '{{ ansible_hostname }}'/
+    new-itemproperty . -Name https -Value 2 -Type DWORD -Force
+    Start-Sleep -s 2
+  changed_when: false

@@ -1,0 +1,17 @@
+---
+- name: Create Keepass Folder
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\Keepass'
+    state: directory
+
+- name: Download Keepass {{ keepass_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\Keepass\{{ keepass_version }}
+    dest: '{{ win_local_sw_depot }}\Keepass\{{ keepass_version }}'
+    flags: /E
+
+- name: Install Keepass {{ keepass_version }}
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\Keepass\{{ keepass_version }}\KeePass-{{ keepass_version }}.msi'
+    product_id: '{CC1A4964-CEDE-452A-908A-77A68412B8F5}'
+    state: present

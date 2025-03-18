@@ -1,0 +1,15 @@
+---
+# Joins domain and adds the computer in the GENERAL OU.
+- name: Joining domain - {{ win_domain_name }}
+  ansible.windows.win_domain_membership:
+    dns_domain_name: '{{ win_domain_name }}'
+    domain_admin_user: '{{ win_domain_name }}\{{ win_domain_yokoadmin }}'
+    domain_admin_password: '{{ win_domain_yokoadmin_pw }}'
+    domain_ou_path: "ou=GENERAL, ou={{ top_level_ou_name }} Computers, ou={{ top_level_ou_name }},\
+                    dc={{ win_domain_name.split('.')[0] }}, dc={{ win_domain_name.split('.')[1] }}"
+    state: domain
+  register: join_domain_status
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: join_domain_status.reboot_required

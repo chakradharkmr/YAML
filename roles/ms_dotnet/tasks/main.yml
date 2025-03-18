@@ -1,0 +1,30 @@
+---
+- name: Check installation status of .NET Framework {{ dotnet_version }}
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full
+    name: Release
+  register: netreleaseversion
+
+# We only want to run the installation of .NET Framework 4.7.2 if version 4.7.2 is not yet installed.
+# At the following location MS explains how to check if certain versions of the framework are installed:
+# https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
+# If the 'Full' subkey is missing, then .NET Framework 4.5 or above isn't installed => install 4.7.2.
+# Or, if the value exists and is less than 461808, version 4.7.2 is not installed => install 4.7.2.
+
+- name: Install .NET Framework {{ dotnet_version }}
+  when: not netreleaseversion.exists or netreleaseversion.value < 461808
+  block:
+    - name: Download installation files for .NET Framework {{ dotnet_version }}
+      community.windows.win_robocopy:
+        src: \\{{ sw_src_path }}\Net-Framework\{{ dotnet_version }}
+        dest: '{{ win_local_sw_depot }}\Net-Framework\{{ dotnet_version }}'
+        flags: /E
+
+    - name: Install .NET Framework {{ dotnet_version }}
+      ansible.windows.win_shell: '{{ win_local_sw_depot }}\Net-Framework\{{ dotnet_version }}\NDP472-KB4054530-x86-x64-AllOS-ENU.exe /q /norestart'
+      register: netinstallation
+
+    - name: Reboot if required
+      ansible.windows.win_reboot:
+      when: netinstallation.changed
+  # block end

@@ -1,0 +1,190 @@
+---
+- name: Set E-net adapter name
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter -Name 'E-net' -ErrorAction SilentlyContinue) {
+      Write-Host 'INFO - E-net adapter name already set'
+    } else {
+      Write-Host 'SUCCESS - E-net adapter name set'
+      $nic = Get-NetIPConfiguration | Select -ExpandProperty IPv4Address | Where-Object IPAddress -eq '{{ ansible_host }}'
+      Get-NetAdapter -Name $nic.InterfaceAlias | Rename-NetAdapter -NewName 'E-net'
+    }
+  register: enet_nic_rename
+  changed_when: enet_nic_rename.stdout_lines[0] == 'SUCCESS - E-net adapter name set'
+
+- name: Set VnetIP adapter name
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter -Name 'VnetIP' -ErrorAction SilentlyContinue) {
+      Write-Host 'INFO - VnetIP adapter name already set'
+    } else {
+      Write-Host 'SUCCESS - VnetIP adapter name set'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} | Rename-NetAdapter -NewName 'VnetIP'
+    }
+  register: vnet_nic_rename
+  changed_when: vnet_nic_rename.stdout_lines[0] == 'SUCCESS - VnetIP adapter name set'
+
+- name: Set VnetIP adapter IP-address
+  ansible.windows.win_shell: |
+    if (Get-NetIPAddress | where {$_.InterfaceAlias -eq 'VnetIP' -and $_.IPv4Address -eq '{{ vnet_ip_address }}' -and
+     $_.PrefixLength -eq '{{ vnet_cidr_mask }}'} -ErrorAction SilentlyContinue) {
+      Write-Host 'INFO - VnetIP adapter IP-address already set'
+    } else {
+      Write-Host 'SUCCESS - VnetIP adapter IP-address set'
+      if (Get-NetIPAddress | where {$_.InterfaceAlias -eq 'VnetIP' -and $_.AddressState -ne 'Tentative'} -ErrorAction SilentlyContinue) {
+        Get-NetIPAddress -InterfaceAlias 'VnetIP' | Remove-NetIpAddress -Confirm:$false
+      }
+      $vnet_subnet_mask = ''+[ipaddress](4.GB-(4GB-shr{{ vnet_cidr_mask }}))
+      netsh interface ip set address "VnetIP" static {{ vnet_ip_address }} $vnet_subnet_mask
+    }
+  register: vnet_nic_ip_addr
+  changed_when: vnet_nic_ip_addr.stdout_lines[0] == 'SUCCESS - VnetIP adapter IP-address set'
+
+- name: Set Vnet/IP Open adapter name
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter -Name 'VnetIP_Open' -ErrorAction SilentlyContinue) {
+      Write-Host 'INFO - VnetIP_Open adapter name already set'
+    } else {
+      Write-Host 'SUCCESS - VnetIP_Open adapter name set'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Vnet/IP Open Communication Driver (BUS2)'} | Rename-NetAdapter -NewName 'VnetIP_Open'
+    }
+  register: vnet_open_nic_rename
+  changed_when: vnet_open_nic_rename.stdout_lines[0] == 'SUCCESS - VnetIP_Open adapter name set'
+
+- name: Enable TCP/IP v4 protocol on all adapters
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip } | Where-Object {$_.Enabled -eq $false}) {
+      Write-Host 'SUCCESS - TCP/IP v4 protocol enabled on all adapters'
+      Get-NetAdapter | foreach { Enable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip }
+    } else {
+      Write-Host 'INFO - TCP/IP v4 protocol already enabled on all adapters'
+    }
+  register: enable_tcpipv4
+  changed_when: enable_tcpipv4.stdout_lines[0] == 'SUCCESS - TCP/IP v4 protocol enabled on all adapters'
+
+- name: Disable TCP/IP v6 protocol on all adapters
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip6 } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - TCP/IP v6 protocol disabled on all adapters'
+      Get-NetAdapter | foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_tcpip6 }
+    } else {
+      Write-Host 'INFO - TCP/IP v6 protocol already disabled on all adapters'
+    }
+  register: disable_tcpipv6
+  changed_when: disable_tcpipv6.stdout_lines[0] == 'SUCCESS - TCP/IP v6 protocol disabled on all adapters'
+
+- name: Disable Vnet protocol on all E-net adapters
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -ne 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID MS_VLTDI } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - Vnet protocol disabled on all E-net adapters'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -ne 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID MS_VLTDI }
+    } else {
+      Write-Host 'INFO - Vnet protocol already disabled on all E-net adapters'
+    }
+  register: disable_vnet_on_enet_nics
+  changed_when: disable_vnet_on_enet_nics.stdout_lines[0] == 'SUCCESS - Vnet protocol disabled on all E-net adapters'
+
+- name: Enable Vnet protocol on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID MS_VLTDI } | Where-Object {$_.Enabled -eq $false}) {
+      Write-Host 'SUCCESS - Vnet protocol enabled on Vnet adapter'
+      Get-NetAdapter Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Enable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID MS_VLTDI }
+    } else {
+      Write-Host 'INFO - Vnet protocol already enabled on Vnet adapter'
+    }
+  register: enable_vnet_on_vnet_nic
+  changed_when: enable_vnet_on_vnet_nic.stdout_lines[0] == 'SUCCESS - Vnet protocol enabled on Vnet adapter'
+
+- name: Disable LLDP Protocol on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_lldp } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - LLDP Protocol disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_lldp }
+    } else {
+      Write-Host 'INFO - LLDP Protocol already disabled on Vnet adapter'
+    }
+  register: disable_lldp_on_vnet_nic
+  changed_when: disable_lldp_on_vnet_nic.stdout_lines[0] == 'SUCCESS - LLDP Protocol disabled on Vnet adapter'
+
+- name: Disable Link-Layer Topology Discovery Mapper I/O Driver on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_lltdio } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - LLTDIO Protocol disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_lltdio }
+    } else {
+      Write-Host 'INFO - LLTDIO Protocol already disabled on Vnet adapter'
+    }
+  register: disable_lltdio_on_vnet_nic
+  changed_when: disable_lltdio_on_vnet_nic.stdout_lines[0] == 'SUCCESS - LLTDIO Protocol disabled on Vnet adapter'
+
+- name: Disable Link-Layer Topology Discovery Responder on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_rspndr } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - RSPNDR Protocol disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_rspndr }
+    } else {
+      Write-Host 'INFO - RSPNDR Protocol already disabled on Vnet adapter'
+    }
+  register: disable_rspndr_on_vnet_nic
+  changed_when: disable_rspndr_on_vnet_nic.stdout_lines[0] == 'SUCCESS - RSPNDR Protocol disabled on Vnet adapter'
+
+- name: Disable File and Printer Sharing on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_server } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - File and Printer Sharing disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_server }
+    } else {
+      Write-Host 'INFO - File and Printer Sharing already disabled on Vnet adapter'
+    }
+  register: disable_server_on_vnet_nic
+  changed_when: disable_server_on_vnet_nic.stdout_lines[0] == 'SUCCESS - File and Printer Sharing disabled on Vnet adapter'
+
+- name: Disable Client for Microsoft Networks on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_msclient } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - Client for Microsoft Networks disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_msclient }
+    } else {
+      Write-Host 'INFO - Client for Microsoft Networks already disabled on Vnet adapter'
+    }
+  register: disable_msclient_on_vnet_nic
+  changed_when: disable_msclient_on_vnet_nic.stdout_lines[0] == 'SUCCESS - Client for Microsoft Networks disabled on Vnet adapter'
+
+- name: Disable QoS Packet Scheduler on Vnet adapter
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+    foreach { Get-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_pacer } | Where-Object {$_.Enabled -eq $true}) {
+      Write-Host 'SUCCESS - QoS Packet Scheduler disabled on Vnet adapter'
+      Get-NetAdapter | Where-Object {$_.InterfaceDescription -eq 'Yokogawa Vnet Adapter'} |
+      foreach { Disable-NetAdapterBinding -InterfaceAlias $_.Name -ComponentID ms_pacer }
+    } else {
+      Write-Host 'INFO - QoS Packet Scheduler already disabled on Vnet adapter'
+    }
+  register: disable_pacer_on_vnet_nic
+  changed_when: disable_pacer_on_vnet_nic.stdout_lines[0] == 'SUCCESS - QoS Packet Scheduler disabled on Vnet adapter'
+
+- name: Disable all adapters except E-net and VnetIP
+  ansible.windows.win_shell: |
+    if (Get-NetAdapter | Where-Object {($_.InterfaceDescription -ne 'Yokogawa Vnet Adapter') -and
+     ($_.Name -ne 'E-net') -and ($_.Status -ne 'Not Present') -and ($_.Status -ne 'Disabled')}) {
+      Write-Host 'SUCCESS - all unused E-net adapters disabled'
+      Get-NetAdapter | Where-Object {($_.InterfaceDescription -ne 'Yokogawa Vnet Adapter') -and
+      ($_.Name -ne 'E-net') -and ($_.Status -ne 'Not Present') -and ($_.Status -ne 'Disabled')} |
+      foreach {Disable-NetAdapter -Name $_.Name -Confirm:$false}
+    } else {
+      Write-Host 'INFO - all unused E-net adapters already disabled'
+    }
+  register: disable_all_but_vnet_and_enet
+  changed_when: disable_all_but_vnet_and_enet.stdout_lines[0] == 'SUCCESS - all unused E-net adapters disabled'

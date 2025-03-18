@@ -1,0 +1,47 @@
+---
+- name: Setting admin logintimeout to 300
+  fortinet.fortios.fortios_system_global:
+    vdom: "{{ vdom }}"
+    system_global:
+      admintimeout: "300"
+
+- name: Setting device hostname according to inventory
+  fortinet.fortios.fortios_system_global:
+    vdom: "{{ vdom }}"
+    system_global:
+      hostname: "{{ inventory_hostname }}"
+
+- name: Add inventory hosts
+  fortinet.fortios.fortios_firewall_address:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_address:
+      name: "{{ item }}"
+      subnet: "{{ hostvars[item].ansible_host }} 255.255.255.255"
+  loop: "{{ groups['all'] }}"
+
+- name: Adding Yokogawa Application Group
+  fortinet.fortios.fortios_firewall_addrgrp:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_addrgrp:
+      name: Yokogawa Applications
+      color: "4"
+      comment: "This group contains all servers running Yokogawa specific applications "
+      member:
+        -
+          name: "{{ item }}"
+  loop: "{{ groups['CENTUM' and 'PROSAFE'] }}"
+
+- name: Adding Domain Controller group
+  fortinet.fortios.fortios_firewall_addrgrp:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_addrgrp:
+      name: Domain Controllers
+      color: "3"
+      comment: "This group contains Windows Domain controllers"
+      member:
+        -
+          name: "{{ item }}"
+  loop: "{{ groups['PDC' and 'SDC'] }}"

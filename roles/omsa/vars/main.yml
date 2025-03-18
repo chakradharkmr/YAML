@@ -1,0 +1,3 @@
+---
+omsa_version: 10.3.0.0
+omsa_depot: '{{ win_local_sw_depot }}\OMSA-x64'

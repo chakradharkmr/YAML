@@ -1,0 +1,11 @@
+---
+- name: Download OPC COM Proxy/Stub
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\OPCCOMProxyStub
+    dest: '{{ win_local_sw_depot }}\OPCCOMProxyStub'
+    flags: /E
+
+- name: Install OPC COM Proxy/Stub
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\OPCCOMProxyStub\redistributable.msi'
+    state: present

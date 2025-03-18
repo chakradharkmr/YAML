@@ -1,0 +1,13 @@
+---
+- name: Download MS Access Database Engine 2016 Installer
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\AccessDatabaseEngine
+    dest: '{{ win_local_sw_depot }}\AccessDatabaseEngine'
+    flags: /E
+
+- name: Install MS Access Database Engine 2016
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\AccessDatabaseEngine\AccessDatabaseEngine.exe'
+    product_id: '{90160000-00D1-0409-0000-0000000FF1CE}'
+    state: present
+    arguments: '/quiet'

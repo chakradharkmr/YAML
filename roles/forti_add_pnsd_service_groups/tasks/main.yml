@@ -1,0 +1,128 @@
+---
+- name: Add EPO service for Agent Wakeup
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "Epo-Agent-Wakeup"
+      comment: "This port is used for sending agent wakeups from the epo server to the Trellix agent"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "8081-8081"
+
+# Reference for ports https://kcm.trellix.com/corporate/index?page=content&id=KB66797
+- name: Add PNSD-EPO-to-AGENT
+  fortinet.fortios.fortios_firewall_service_group:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_group:
+      name: "PNSD-EPO-to-AGENT"
+      comment: "Traffic that flows from the EPO server to Trellix Agent"
+      member:
+        - name: "HTTP"
+        - name: "SMB"
+        - name: "HTTPS"
+        - name: "Epo-Agent-Wakeup"
+
+# Reference for ports https://kcm.trellix.com/corporate/index?page=content&id=KB66797
+- name: Add PNSD-AGENT-to-EPO
+  fortinet.fortios.fortios_firewall_service_group:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_group:
+      name: "PNSD-AGENT-to-EPO"
+      comment: "Traffic that flows from the Trellix Agent to EPO server"
+      member:
+        - name: "HTTP"
+        - name: "HTTPS"
+
+- name: Add Veeam default communication port
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "VeeamBR-agent-default-communication"
+      comment: "This port is used for default server-agent communication"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "6184"
+
+- name: Add Veeam agent default communication port
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "agent-veeambr-default-communication"
+      comment: "This port is used for default agent-server communication"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "10005"
+
+- name: Add Veeam Installer Service
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "Veeam-installer-service"
+      comment: "These ports are used for Veeam Installer Service"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "135"
+        - "137-139"
+        - "6160"
+        - "11731"
+      udp_portrange:
+        - "135"
+        - "137-139"
+        - "6160"
+        - "11731"
+
+- name: Add Veeam SQL Log Shipping
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "Veeam-sql-log-shipping"
+      comment: "These ports are used for Veeam SQL log shipping"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "2500-3300"
+
+- name: Add Veeam Dynamic RPC ports
+  fortinet.fortios.fortios_firewall_service_custom:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_custom:
+      name: "Veeam-dynamic-rpc"
+      comment: "These ports are used for Veeam Dynamic RPC"
+      protocol: "TCP/UDP/SCTP"
+      tcp_portrange:
+        - "49152-65535"
+
+# Reference for Veeam ports: https://helpcenter.veeam.com/docs/backup/agents/used_ports.html?ver=110
+- name: Add PNSD-VeeamBRServer-to-VeeamAGENT
+  fortinet.fortios.fortios_firewall_service_group:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_group:
+      name: "PNSD-VeeamBRServer-to-VeeamAGENT"
+      comment: "Traffic that flows from the Veeam Backup and Replication server to Veeam Agent"
+      member:
+        - name: "VeeamBR-agent-default-communication"
+        - name: "Veeam-installer-service"
+        - name: "Veeam-sql-log-shipping"
+        - name: "Veeam-dynamic-rpc"
+
+# Reference for Veeam ports: https://helpcenter.veeam.com/docs/backup/agents/used_ports.html?ver=110
+- name: Add PNSD-VeeamAGENT-to-VeeamBRServer
+  fortinet.fortios.fortios_firewall_service_group:
+    vdom: "{{ vdom }}"
+    state: "present"
+    firewall_service_group:
+      name: "PNSD-VeeamAGENT-to-VeeamBRServer"
+      comment: "Traffic that flows from the Veeam Agent to Veeam Backup and Replication server"
+      member:
+        - name: "agent-veeambr-default-communication"
+        - name: "Veeam-dynamic-rpc"
+        - name: "SMB"
+        - name: "Veeam-sql-log-shipping"

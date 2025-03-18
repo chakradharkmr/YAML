@@ -1,0 +1,237 @@
+---
+- name: Check if local installation media folder exists for EXA-OPC {{ exaopc_revision }}
+  ansible.windows.win_stat:
+    path: '{{ local_exaopc_depot }}'
+  register: local_exaopc_depot_info
+
+- name: Create local installation media folders for EXA-OPC {{ exaopc_revision }}
+  ansible.builtin.include_tasks: st_local_exaopc_depot.yml
+  when: not local_exaopc_depot_info.stat.exists
+
+- name: Disable UAC for Administrators
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 0
+    type: dword
+
+- name: Disable Smartscreen
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System
+    name: EnableSmartScreen
+    data: 0
+    type: dword
+
+# - name: Add local group CTM_MAINTENANCE_LCL
+#   ansible.windows.win_group:
+#     name: CTM_MAINTENANCE_LCL
+#     description: Yokogawa CENTUM-VP local group for maintenance
+#     state: present
+
+# - name: Add CENTUM security groups and users when in standalone mode
+#   block:
+#     - name: Create CENTUM groups for standalone mode
+#       ansible.windows.win_group:
+#         name: '{{ item }}'
+#         state: present
+#       loop:
+#         - CTM_ENGINEER
+#         - CTM_OPERATOR
+#         - CTM_OPC
+#         - CTM_MAINTENANCE
+#         - CTM_ENGINEER_ADM
+#         - ADS_MANAGER
+
+#     - name: Create CENTUM users for standalone mode
+#       ansible.windows.win_user:
+#         name: '{{ item.name }}'
+#         password: '{{ item.password }}'
+#       loop:
+#         - { name: '{{ win_standalone_operator }}', password: '{{ win_standalone_operator_pw }}' }
+#         - { name: '{{ win_standalone_engineer }}', password: '{{ win_standalone_engineer_pw }}' }
+
+#     - name: Add {{ win_standalone_operator }} and {{ win_standalone_engineer }} to CTM_OPERATOR
+#       ansible.windows.win_group_membership:
+#         name: CTM_OPERATOR
+#         members:
+#           - '{{ win_standalone_operator }}'
+#           - '{{ win_standalone_engineer }}'
+#         state: present
+
+#     - name: Add {{ win_standalone_engineer }} to CTM_ENGINEER
+#       ansible.windows.win_group_membership:
+#         name: CTM_ENGINEER
+#         members:
+#           - '{{ win_standalone_engineer }}'
+#         state: present
+
+#     - name: Add {{ win_standalone_engineer }} to CTM_ENGINEER_ADM
+#       ansible.windows.win_group_membership:
+#         name: CTM_ENGINEER_ADM
+#         members:
+#           - '{{ win_standalone_engineer }}'
+#         state: present
+
+#   when: not using_active_directory
+# # block end CENTUM
+
+# - name: Add local admins to CTM_MAINTENANCE_LCL group
+#   ansible.windows.win_group_membership:
+#     name: CTM_MAINTENANCE_LCL
+#     members:
+#       - '{{ win_local_admin }}'
+#       - '{{ ansible_user }}'
+#     state: present
+
+# - name: Add domain admins to CTM_MAINTENANCE_LCL group
+#   ansible.windows.win_group_membership:
+#     name: CTM_MAINTENANCE_LCL
+#     members:
+#       - '{{ win_domain_name.split(".") [0] }}\{{ win_domain_admin }}'
+#       - '{{ win_domain_name.split(".") [0] }}\{{ win_domain_yokoadmin }}'
+#     state: present
+#   when: using_active_directory
+
+- name: Check if a physical Vnet/IP card [VI702] is installed
+  ansible.windows.win_shell: |
+    if (Get-WmiObject Win32_PNPEntity | Where-Object {$_.PNPDeviceID -like 'PCI\VEN_1281&DEV_001B&SUBSYS_00001*'}) {
+      Write-Host 'INFO - Vnet card hardware found'
+    } else {
+      Write-Host 'INFO - Vnet card hardware not found'
+    }
+  register: vnet_adapter_installed
+  changed_when: false
+
+# If the target node is physical hardware and no Vnet card is found Vnet drivers will be installed without connection to the Vnet card
+# If in this scenario a Vnet card is added later on it may prove difficult to connect the driver to the hardware
+# Therefore the playbook is paused when this scenario is detected to alert the user of the situation
+- name: Pause the playbook if the target node is a physical PC and no Vnet card is installed (if paused here you may want to abort and check first)
+  ansible.builtin.pause:
+  when: ansible_facts['virtualization_role'] != "guest" and vnet_adapter_installed.stdout_lines[0] == 'INFO - Vnet card hardware not found'
+
+- name: Install Vnet drivers
+  ansible.builtin.include_tasks: st_vnet_card_drivers.yml
+  vars:
+    local_product_path: '{{ local_exaopc_depot }}\EXA\CENTUM'
+  when: ansible_facts['virtualization_role'] == "guest" or vnet_adapter_installed.stdout_lines[0] == 'INFO - Vnet card hardware found'
+
+- name: Configure network adapters
+  ansible.builtin.include_tasks: st_configure_nics.yml
+  when: vnet_driver_installed is defined
+  # and vnet_driver_installed.stdout_lines[0] == 'INFO - Vnet driver is installed'
+
+# - name: Set autologon to local admin if IT-Security User Management is set to [standalone]
+#   block:
+#   - name: Set autologon to local administrator (items hidden for security reasons)
+#     ansible.windows.win_regedit:
+#       path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+#       name: '{{ item.name }}'
+#       data: '{{ item.data }}'
+#       type: '{{ item.type }}'
+#     loop: '{{ local_admin_autologon }}'
+#     no_log: yes
+#   when: it_security.user_management == 'standalone'
+#   # block end
+
+# - name: Set autologon to domain admin if IT-Security User Management is set to [domain] or [combination]
+#   block:
+#   - name: Set autologon to domain administrator (items hidden for security reasons)
+#     ansible.windows.win_regedit:
+#       path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+#       name: '{{ item.name }}'
+#       data: '{{ item.data }}'
+#       type: '{{ item.type }}'
+#     loop: '{{ domain_admin_autologon }}'
+#     no_log: yes
+#   when: it_security.user_management == 'domain' or it_security.user_management == 'combination'
+#   # block end
+
+# - name: Check if pre-installation bootstrap exists
+#   ansible.windows.win_stat:
+#     path: '{{ local_ctmvp_depot }}\ctmvp_preinstall_bootstrap.cmd'
+#   register: ctmvp_preinst_bootstrap_info
+
+# - name: Execute CENTUM-VP preinstallation
+#   ansible.builtin.include_tasks: st_ctmvp_preinstall.yml
+#   when: not ctmvp_preinst_bootstrap_info.stat.exists
+
+# # TODO: The product-id guid below might be different for other CENTUM-VP revisions
+# # To de checked when testing with other revisions
+# - name: Check for installed CENTUM-VP revision
+#   ansible.windows.win_reg_stat:
+#     path: HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\CENTUM_{D181AC69-EFF0-4AC4-B7C8-D1D53EC56DC5}
+#     name: DisplayVersion
+#   register: ctmvp_installed_version
+
+# - name: Execute CENTUM-VP installation
+#   ansible.builtin.include_tasks: st_ctmvp_install.yml
+#   when: not ctmvp_installed_version.exists or (ctmvp_installed_version.value is defined and ctmvp_installed_version.value != ctmvp_revision.replace('R', ''))
+
+# - name: Create Updates folder under the centum local repo path
+#   ansible.windows.win_stat:
+#     path: '{{ local_ctmvp_depot }}\Updates'
+#   register: local_ctmvp_depot_info
+
+# - name: Download CENTUM-VP updates
+#   community.windows.win_robocopy:
+#     src:  \\{{ sw_src_path }}\CENTUM-VP\UPDATES\{{ ctmvp_revision }}
+#     dest: '{{ local_ctmvp_depot }}\Updates'
+#     flags: /E
+
+# - name: Get list of CENTUM-VP updates to install
+#   ansible.windows.win_find:
+#     paths: '{{ local_ctmvp_depot }}\Updates\{{ ctmvp_revision }}'
+#   register: ctmvp_updates_info
+
+# - name: Install CENTUM-VP updates
+#   block:
+#   - name: Create list of updates
+#     ansible.builtin.set_fact:
+#       ctmvp_updates: "{{ ctmvp_updates_info.files|selectattr('path')|map(attribute='filename')|list|replace('.zip','') }}"
+
+#   - name: Install CENTUM-VP update
+#     ansible.builtin.include_tasks: st_ctmvp_update.yml
+#     when:
+#       - ctmvp_installed_version.value is defined
+#       - ctmvp_installed_version.value == ctmvp_revision.replace('R', '')
+#       - ctmvp_updates_info.examined > 0
+#     loop: '{{ ctmvp_updates }}'
+#     register: ctmvp_updates_install
+
+#   - name: Reboot
+#     ansible.windows.win_reboot:
+#       msg: Reboot by Y-dPloy after CENTUM-VP update installation
+#       pre_reboot_delay: 10
+#     when: ctmvp_updates_install.changed
+#   when: ctmvp_updates_info.examined > 0
+#   # block end
+
+# - name: Check if CENTUM-VP IT-Security tool path exists
+#   ansible.windows.win_stat:
+#     path: '{{ it_security.path }}'
+#   register: it_security_path_info
+
+# - name: Execute CENTUM-VP IT-Security tool
+#   ansible.builtin.include_tasks: st_it_security.yml
+#   when: it_security_path_info.stat.exists
+
+- name: Turn on UAC for Administrators
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 5
+    type: dword
+
+- name: Disable autologon
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    type: '{{ item.type }}'
+  loop: '{{ clear_admin_autologon }}'
+  register: auto_logon_disable
+
+- name: Reboot
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy after EXA-OPC installation
+    pre_reboot_delay: 10

@@ -1,0 +1,51 @@
+---
+- name: Check if Microsoft Edge Webview 2 is installed
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}
+    name: pv
+  register: webviewpv
+
+- name: Uninstall Microsoft Edge Webview 2 if the currently installed version does not match the target version
+  when: webviewpv.exists and webviewpv.value != webview2_version
+  block:
+    - name: Uninstall Microsoft Edge Webview 2
+      ansible.windows.win_package:
+        path: 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\{{ webviewpv.value }}\Installer\setup.exe'
+        arguments:
+          - --uninstall
+          - --msedgewebview
+          - --system-level
+          - --verbose-logging
+          - --force-uninstall
+      vars:
+        ansible_become_method: runas
+        ansible_become_user: '{{ win_local_admin }}'
+        ansible_become_pass: '{{ win_local_admin_pw }}'
+      failed_when: false
+  # block end
+
+- name: Microsoft Edge Webview 2 Installer
+  when: (not webviewpv.exists) or (webviewpv.exists and webviewpv.value != webview2_version)
+  block:
+    - name: Create local installation media folder for Microsoft Edge Webview 2
+      ansible.windows.win_file:
+        path: '{{ win_local_sw_depot }}\msedge_webview2'
+        state: directory
+
+    - name: Download Microsoft Edge Webview 2
+      community.windows.win_robocopy:
+        src: \\{{ sw_src_path }}\msedge_webview2\{{ webview2_version }}
+        dest: '{{ win_local_sw_depot }}\msedge_webview2\{{ webview2_version }}'
+        flags: /E
+
+    - name: Install Microsoft Edge Webview 2
+      ansible.windows.win_package:
+        path: '{{ win_local_sw_depot }}\msedge_webview2\{{ webview2_version }}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+        arguments:
+          - /silent
+          - /install
+      vars:
+        ansible_become_method: runas
+        ansible_become_user: '{{ win_local_admin }}'
+        ansible_become_pass: '{{ win_local_admin_pw }}'
+  # block end

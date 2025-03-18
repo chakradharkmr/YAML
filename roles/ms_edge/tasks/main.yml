@@ -1,0 +1,30 @@
+---
+- name: Create Microsoft Edge Folder
+  ansible.windows.win_file:
+    path: '{{ win_local_sw_depot }}\msedge'
+    state: directory
+
+- name: Download Microsoft Edge {{ edge_version }}
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\msedge\{{ edge_version }}
+    dest: '{{ win_local_sw_depot }}\msedge\{{ edge_version }}'
+    flags: /E
+
+- name: Registry hack for installation without Patches
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate
+    name: Allowsxs
+    type: dword
+    data: 0x1
+
+- name: Install Microsoft Edge {{ edge_version }}
+  ansible.windows.win_package:
+    path: '{{ win_local_sw_depot }}\msedge\{{ edge_version }}\MicrosoftEdgeEnterpriseX64.msi'
+    product_id: '{CA43AFE6-5C0B-3879-8677-1DB5A7B9CF9A}'
+    arguments:
+      - /qn
+
+- name: Disable Edge Update Service from automatically starting
+  ansible.windows.win_service:
+    name: edgeupdate
+    start_mode: disabled
