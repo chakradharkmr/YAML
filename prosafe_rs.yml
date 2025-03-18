@@ -1,0 +1,14 @@
+---
+- name: Deploy all PROSAFE group hosts
+  hosts: PROSAFE
+  vars_files:
+    - MyProject_vars.yaml
+
+  roles:
+    - win_os_settings
+    - { role: join_domain_other, when: using_active_directory }
+    - win_local_users
+    - yoko_win_settings
+    - { role: prosafe_rs, psfrs_revision: 'R4.09.00' }
+    - { role: vsr, when: not using_active_directory }
+    - { role: trellix_ens, when: not using_active_directory }

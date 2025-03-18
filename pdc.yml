@@ -1,0 +1,19 @@
+---
+- name: Deploy all PDC group hosts
+  hosts: PDC
+  vars_files:
+    - MyProject_vars.yaml
+
+  pre_tasks:
+  # Skip execution of this playbook when the user accidentally runs this playbook in a WORKGROUP environment
+  # or forgets to set the using_active_directory variable in a domain environment.
+    - name: End play if using_active_directory has not been set to true in project vars file
+      ansible.builtin.meta: end_play
+      when: not using_active_directory
+
+  roles:
+    - win_os_settings
+    - pdc
+    - yoko_fileserver
+    - adcs
+    - { role: add_vm, vars: { vm_name: UMS01 }, when: 'ansible_facts["virtualization_role"] != "guest"' }

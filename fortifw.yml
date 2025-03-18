@@ -1,0 +1,13 @@
+---
+- name: Deploy fortigate hosts
+  hosts: FORTIGATE
+  connection: httpapi
+  vars:
+    vdom: "root"
+    ansible_httpapi_use_ssl: false
+    ansible_httpapi_validate_certs: false
+    ansible_httpapi_port: 80
+
+  roles:
+    - forti_device_config
+    - forti_add_pnsd_service_groups

@@ -1,0 +1,11 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+.gitignore
+test.yml
+ansible.cfg
+keepass/pwdb.kdbx
+.ansible-lint
+.ansible-lint-ignore

@@ -1,0 +1,19 @@
+---
+# Keepass integration
+keepass_dbx: "keepass/pwdb.kdbx"
+keepass_psw: 01project!
+
+# It is also possible to change the clear-text password above to the encrypted one below.
+# When doing this, add --ask-vault-pass after each command.
+# examples:
+#  ansible all -m ping --ask-vault-pass
+#  ansible-playbook -i MyProject-inventory.ini MyProject-playbook.yml --ask-vault-pass
+# You will then be asked for the above mentioned password each time you run a command.
+
+# keepass_psw: !vault |
+#           $ANSIBLE_VAULT;1.1;AES256
+#           35356437653463383162343131373438626531656535323231343732653063613733633539303637
+#           6630393739313939356437626461646537313261323437330a323666363839373733653131333265
+#           39303032636532336465633930303039613634366262313065386562613731656537643166326237
+#           3936623833633836330a613630373865346539356333356639613937373664323130646633643862
+#           3564

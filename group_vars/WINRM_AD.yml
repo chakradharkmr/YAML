@@ -1,0 +1,9 @@
+---
+ansible_user: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'username') }}"
+ansible_password: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'password') }}"
+ansible_port: 5986
+ansible_connection: winrm
+ansible_winrm_server_cert_validation: ignore
+ansible_winrm_operation_timeout_sec: 90
+ansible_winrm_read_timeout_sec: 240
+# ansible_winrm_transport: credssp

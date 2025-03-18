@@ -1,0 +1,31 @@
+---
+- name: Onboard host(s)
+  hosts: WINDOWS
+  vars_files:
+    - MyProject_vars.yaml
+  vars:
+    ansible_user: '{{ onboard_ansible_user }}'
+    ansible_password: '{{ onboard_ansible_user_pw }}'
+
+  tasks:
+    - name: Create Domain Administrator user (domain controllers)
+      ansible.windows.win_user:
+        name: '{{ win_domain_yokoadmin }}'
+        password: '{{ win_domain_yokoadmin_pw }}'
+        description: '{{ win_domain_yokoadmin_descr }}'
+        password_never_expires: true
+        state: present
+        groups:
+          - Administrators
+      when: inventory_hostname in groups['PDC'] or inventory_hostname in groups['SDC']
+
+    - name: Create Local Administrator user (all except domain controllers)
+      ansible.windows.win_user:
+        name: '{{ win_local_admin }}'
+        password: '{{ win_local_admin_pw }}'
+        description: '{{ win_local_admin_descr }}'
+        password_never_expires: true
+        state: present
+        groups:
+          - Administrators
+      when: inventory_hostname not in groups['PDC'] and inventory_hostname not in groups['SDC']

@@ -1,0 +1,31 @@
+---
+# Playbooks are processed in order of appearance in this file (top-to-bottom).
+- name: Configure primary DC
+  ansible.builtin.import_playbook: pdc.yml
+
+- name: Configure secondary DC
+  ansible.builtin.import_playbook: sdc.yml
+
+- name: Configure WSUS
+  ansible.builtin.import_playbook: wsus.yml
+
+- name: Configure AV
+  ansible.builtin.import_playbook: av.yml
+
+- name: Configure CENTUM-VP
+  ansible.builtin.import_playbook: centum_vp.yml
+
+- name: Configure ProSafe-RS
+  ansible.builtin.import_playbook: prosafe_rs.yml
+
+- name: Configure ExaOPC
+  ansible.builtin.import_playbook: exa_opc.yml
+
+- name: Configure PRM
+  ansible.builtin.import_playbook: prm.yml
+
+- name: Configure Backup
+  ansible.builtin.import_playbook: backup.yml
+
+- name: Configure NMS
+  ansible.builtin.import_playbook: nms.yml

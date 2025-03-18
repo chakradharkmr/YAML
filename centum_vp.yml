@@ -1,0 +1,15 @@
+---
+- name: Deploy all CENTUM hosts
+  hosts: CENTUM
+  vars_files:
+    - MyProject_vars.yaml
+
+  roles:
+    - win_os_settings
+    - { role: join_domain_other, when: using_active_directory }
+    - yoko_win_settings
+    - win_local_users
+    - { role: centum_vp, ctmvp_revision: 'R6.10.00' }
+    - { role: vsr, when: not using_active_directory }
+    - { role: trellix_ens, when: not using_active_directory }
+    - { role: shct, when: is_shct_server }

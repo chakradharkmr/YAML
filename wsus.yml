@@ -1,0 +1,13 @@
+---
+- name: Deploy all WSUS group hosts
+  hosts: WSUS
+  vars_files:
+    - MyProject_vars.yaml
+
+  roles:
+    - win_os_settings
+    - { role: join_domain_general, when: using_active_directory }
+    - win_local_users
+    - report_viewer
+    - wsus
+    - { role: trellix_ens, when: not using_active_directory }

@@ -1,0 +1,15 @@
+---
+- name: Deploy all EXAOPC hosts
+  hosts: SOLUTIONBASED
+  vars_files:
+    - MyProject_vars.yaml
+
+  roles:
+    - win_os_settings
+    - { role: join_domain_other, when: using_active_directory }
+    - yoko_win_settings
+    - win_local_users
+    - { role: exa_opc, exaopc_revision: 'R3.80.00' }
+    - { role: vsr, when: not using_active_directory }
+    - { role: trellix_ens, when: not using_active_directory }
+    # - solidifier

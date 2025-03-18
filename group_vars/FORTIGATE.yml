@@ -1,0 +1,4 @@
+---
+ansible_user: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Y-dPloy/fortigate_ydploy', 'username') }}"
+ansible_password: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Y-dPloy/fortigate_ydploy', 'password') }}"
+ansible_network_os: fortinet.fortios.fortios

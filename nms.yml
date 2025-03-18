@@ -1,0 +1,84 @@
+---
+- name: Deploy all NMS hosts
+  hosts: WINDOWS,NMS
+  vars_files:
+    - MyProject_vars.yaml
+
+  pre_tasks:
+    - name: Find all paths to local installation folders for ansible collections
+      ansible.builtin.shell: |
+        ansible-galaxy collection list community.zabbix > collection_list_all
+        grep '# ' collection_list_all > collection_list_raw
+        awk '{gsub(/# /,"")}1' collection_list_raw
+      register: collection_paths
+      delegate_to: localhost
+      when: group_names[0] == "NMS"
+      changed_when: false
+
+    - name: Get present working directory
+      ansible.builtin.command: pwd
+      delegate_to: localhost
+      when: group_names[0] == "NMS"
+      register: pres_work_dir
+      changed_when: false
+
+    - name: Copy updated Windows.yml to community.zabbix.zabbix_server role
+      ansible.builtin.command: >
+        cp '{{ pres_work_dir.stdout_lines[0] }}/roles/zabbix_cnf/files/Windows.yml' '{{ item }}/community/zabbix/roles/zabbix_agent/tasks/Windows.yml'
+      delegate_to: localhost
+      when: group_names[0] == "NMS"
+      loop:
+        - "{{ collection_paths.stdout_lines[0] }}"
+      changed_when: false
+
+  roles:
+    - hosts: WINDOWS
+      role: community.zabbix.zabbix_agent
+      zabbix_agent_server: '{{ hostvars[groups["NMS"][0]]["ansible_host"] }}'
+      zabbix_agent_serveractive: '{{ hostvars[groups["NMS"][0]]["ansible_host"] }}'
+      zabbix_agent_allowroot: 1
+      zabbix_agent_version: 6.4
+      zabbix_agent_version_minor: 6.4.5
+      zabbix_version_long: 6.4.5
+      zabbix_agent_hostmetadataitem: system.uname
+      zabbix_host_groups:
+        - Windows hosts
+      zabbix_agent_link_templates:
+        - Windows by Zabbix agent
+
+    - hosts: NMS
+      role: geerlingguy.mysql
+      this_mysql_db_name: zabbixdb
+      this_mysql_user_name: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/DatabaseAccout', 'username') }}"
+      this_mysql_user_password: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/DatabaseAccout', 'password') }}"
+
+    - hosts: NMS
+      role: geerlingguy.apache
+
+    - hosts: NMS
+      role: geerlingguy.php
+
+    - hosts: NMS
+      role: community.zabbix.zabbix_server
+      zabbix_server_database: mysql
+      zabbix_server_database_long: mysql
+      zabbix_server_dbport: 3306
+      zabbix_server_mysql_login_user: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/DatabaseAccout', 'username') }}"
+      zabbix_server_mysql_login_password: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/DatabaseAccout', 'username') }}"
+
+    - hosts: NMS
+      role: community.zabbix.zabbix_web
+      zabbix_api_server_url: zabbix.mydomain.com
+      zabbix_server_database: mysql
+      zabbix_db_type_long: mysql
+      zabbix_server_dbport: 3306
+
+    - hosts: NMS
+      role: community.zabbix.zabbix_agent
+      zabbix_agent2: false
+      zabbix_agent_server: 'localhost,127.0.0.1,{{ inventory_hostname }},{{ ansible_host }}'
+      zabbix_agent_serveractive: '{{ ansible_host }}'
+      zabbix_agent_allowroot: 1
+
+    - hosts: NMS
+      role: zabbix_cnf

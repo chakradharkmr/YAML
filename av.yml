@@ -1,0 +1,12 @@
+---
+- name: Deploy all AV group hosts
+  hosts: AV
+  vars_files:
+    - MyProject_vars.yaml
+
+  roles:
+    - win_os_settings
+    - join_domain_general
+    - win_local_users
+    - epo
+    - { role: trellix_ens, when: not using_active_directory }

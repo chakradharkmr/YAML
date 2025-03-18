@@ -1,0 +1,265 @@
+---
+# === INSTRUCTIONS AND NOTES ===
+# In this file, define variables to be used in any playbook througout the project.
+# Note 1: Additional variables.
+#  Additional variables may be defined per role.
+#  See /roles/<role_name>/vars/main.yml or /roles/<role_name>/defaults/main.yml file per role.
+#  Only define vars under a role that are specific to that role and that are not used anywhere else.
+# Note 2: Passwords.
+#  Passwords are kept safe in a Keepass database (always called "pwdb.kdbx").
+#  The Keepass database is stored under the <Ansible project folder>\keepass\ folder.
+#  Update all passwords in the pwdb.kdbx file according to your project requirements BEFORE starting deployment!
+#  Note that changes in the password database after deployment has started, may require running all playbooks again,
+#  and may cause unexpected results in some cases.
+# Note 3: Keepass database contents and structure.
+#  Only change password references in the pwdb.kdbx file to reflect additions, changes or deletions of credentials in the Ansible code.
+#  Make sure that the entries in the Keepass database that are used for Y-dPLoy deployment remain in line with the code.
+#  Also, if passwords need to be changed, do not change them in the code, change them in the Keepass database.
+#  The code must only contain references to the related entries in the Keepass database.
+
+# === SOFTWARE DEPOT PATH ===
+# Set the path of teh SMB share where source files are located (Images folder).
+# If the contents of the Images folder is on your Ansible controller, set the IP-address of your NIC that
+# you use to connect to the targets in the variable below.
+sw_src_path: "172.17.1.247\\share"
+
+# === LOCAL COMPUTER SETTINGS ===
+# Timezone for all computers. For available options, execute "tzutil /l" on the command prompt.
+win_proj_timezone: W. Europe Standard Time
+
+# Region for all computers. For available options check
+# https://docs.ansible.com/ansible/latest/collections/community/windows/win_region_module.html#win-region-module
+win_proj_region: en-US
+
+# Customize regional settings. Set to true to set custom regional settings.
+# Customize the settings in the roles/custom_regional_settings/vars/main.yml file.
+# Valid values: boolean [ true | false ]
+set_custom_regional_settings: true
+
+# Path to the local software depot, used to store any files that need to be copied to the target computer during deployment.
+win_local_depot: C:\Yokogawa
+win_local_sw_depot: '{{ win_local_depot }}\Software'
+
+# === ACTIVE DIRECTORY DS CONFIGURATION SETTINGS ===
+# The using_active_directory variable defines if there is a Windows Domain in this project.
+# This setting has a broad effect on many roles. make sure to set it correct before starting your deployment!
+# Valid values: boolean [ true | false ]
+using_active_directory: true
+
+# Windows domain name (set to WORKGROUP if no AD is used, in other words, if all computers will remain in WORKGROUP).
+# Valid values: Best results are obtained when using two strings containing only lowercase latin letters [a-z], devided by a dot [.].
+win_domain_name: yokogawa.local
+
+# Domain netbios name. If you comment this var out, it will automatically compute the name using the win_domain_name var.
+# Valid values: Only use uppercase latin letters [A-Z].
+win_netbios_name: YOKOGAWA
+
+# The name of the first OU  (Organizational Unit) in the root of AD. Often this will be the end user's companyname like VOPAK or GATE.
+# All default OU's will be nested under this OU.
+# Valid values: Only use uppercase latin letters [A-Z].
+top_level_ou_name: YOKOGAWA
+
+# Safe mode password for the DC
+# Valid values: Use uppercase latin letters [A-Z], lowercase latin letters [a-z], numbers [0-9] and special characters to construct a secure password.
+dc_recovery_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/DSRM', 'password') }}"
+
+# DNS Server IP-addresses
+# By default the IP-addresses of the first host under PDC and the first host under SDC in the inventory file are used.
+# To override the default, uncomment the following two (2) lines and set your own IP-addresses.
+#  win_primary_dnsserver: 192.168.1.1
+#  win_secondary_dnsserver: 192.168.1.2
+
+# === WINDOWS DOMAIN USERS ===
+win_domain_admin: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/DomainAdmin', 'username') }}"
+win_domain_admin_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/DomainAdmin', 'password') }}"
+win_domain_admin_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/DomainAdmin', 'notes') }}"
+
+win_domain_yokoadmin: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'username') }}"
+win_domain_yokoadmin_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'password') }}"
+win_domain_yokoadmin_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'notes') }}"
+
+win_domain_backupservice: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Backup', 'username') }}"
+win_domain_backupservice_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Backup', 'password') }}"
+win_domain_backupservice_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Backup', 'notes') }}"
+
+win_domain_engineer: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Engineer', 'username') }}"
+win_domain_engineer_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Engineer', 'password') }}"
+win_domain_engineer_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Engineer', 'notes') }}"
+
+win_domain_operator: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Operator', 'username') }}"
+win_domain_operator_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Operator', 'password') }}"
+win_domain_operator_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/Operator', 'notes') }}"
+
+# === WINDOWS LOCAL USERS ===
+onboard_ansible_user: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Y-dPloy/Onboard', 'username') }}"
+onboard_ansible_user_pw: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Y-dPloy/Onboard', 'password') }}"
+onboard_ansible_user_descr: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Y-dPloy/Onboard', 'notes') }}"
+
+win_local_builtin_admin: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Administrator', 'username') }}"
+win_local_builtin_admin_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Administrator', 'password') }}"
+win_local_builtin_admin_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Administrator', 'notes') }}"
+
+win_local_admin: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/LocalAdministrator', 'username') }}"
+win_local_admin_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/LocalAdministrator', 'password') }}"
+win_local_admin_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/LocalAdministrator', 'notes') }}"
+
+win_backup_admin: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Backup', 'username') }}"
+win_backup_admin_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Backup', 'password') }}"
+win_backup_admin_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/Backup', 'notes') }}"
+
+# === CENTUM AND PROSAFE LOCAL USERS FOR STANDALONE MODE ===
+win_standalone_operator: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/OPERATOR', 'username') }}"
+win_standalone_operator_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/OPERATOR', 'password') }}"
+win_standalone_operator_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/OPERATOR', 'notes') }}"
+
+win_standalone_engineer: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/ENGINEER', 'username') }}"
+win_standalone_engineer_pw: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/ENGINEER', 'password') }}"
+win_standalone_engineer_descr: "{{ lookup('viczem.keepass.keepass', 'Windows/LocalUsers/ENGINEER', 'notes') }}"
+
+# === YOKOGAWA PRODUCTS - DEFAULT USERS ===
+set_yokogawa_user_passwords: true
+win_offuser_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/OFFUSER', 'password') }}"
+win_ctm_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/CTM_PROCESS', 'password') }}"
+win_ugs_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/UGS_PROCESS', 'password') }}"
+win_lic_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/LIC_PROCESS', 'password') }}"
+win_rdc_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/RDC_PROCESS', 'password') }}"
+win_psf_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/PSF_PROCESS', 'password') }}"
+win_opc_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/OPC_PROCESS', 'password') }}"
+win_exa_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/EXA_PROCESS', 'password') }}"
+win_plt_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/EXA_PROCESS', 'password') }}"
+win_prm_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/PRM_PROCESS', 'password') }}"
+win_prm_process2_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/PRM_PROCESS2', 'password') }}"
+win_ads_process_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/ADS_PROCESS', 'password') }}"
+win_ads_agent_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/ADS_AGENT', 'password') }}"
+win_vnt_common_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/VNT_COMMON', 'password') }}"
+win_vnt_nvp_core_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/VNT_NVP_CORE', 'password') }}"
+win_vnt_bknet_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/VNT_BKNET', 'password') }}"
+win_tis_service_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/TIS_SERVICE', 'password') }}"
+win_prm_sqlserver_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/PRM_SQLSERVER', 'password') }}"
+win_prm_sqlbrowser_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/PRM_SQLBROWSER', 'password') }}"
+win_quantumuser_pw: "{{ lookup('viczem.keepass.keepass', 'Yokogawa_Products/OS_USERS/Quantumuser', 'password') }}"
+
+# === VNET-IP SETTINGS ===
+vnet_cidr_mask: 16
+
+# === HIS-TS SETTINGS ===
+# Define if CALS are per user or per device. Options are 'user' or 'device'
+rds_cal_license: user
+# Set the licensing server. Use the IP or FQDN of the server.
+licensing_server: pdc01.yokogawa.local
+
+# === SHCT ===
+# When used in conjunction with CENTUM-VP, SHCT (Site Health Check Tool for GISS-IB) needs to know the System-ID of the target system.
+# Since CENTUM-VP licenses are not yet distrubuted during Y-dPLoy deployment, the System-ID cannot be retreived from the target system
+# at the time of SHCT deployment. Therefore we need to provide it here to be able to install and configure SHCT on the system.
+system_id: VP123456
+
+# === VERITAS SYSTEM RECOVERY SETTINGS ===
+# Veritas system recovery license key. Remove all dashes (-) from the license key. Examples;
+vsr_workstation_license_key: 04G3499991005165
+vsr_server_license_key: 06G3269992005023
+
+# By default, version '21.0.3' is installed.
+# Uncomment the following line if you want to install version 18.0.4.
+# vsr_version: '18.0.4'
+
+# Backup destination. By default, the hostname of the computer is added to the path.
+# So if you specify D:\Backup on a node with hostname HIS0164, the back-up destination will be D:\Backup\HIS0164.
+vsr_where_to_backup: C:\Backup
+# Backups will always be done on Sunday starting at 18:00. Options for the interval are either Weekly or Monthly.
+# Capital letter is important!
+vsr_backup_interval: Weekly
+
+# === WSUS SETTINGS ===
+# Where WSUS will store it's updates.
+wsus_content_folder: C:\WSUS
+# Upstream server used for Downloading updates.
+wsus_upstream_server: 172.17.1.1
+# default port used to conect to upstream server.
+wsus_upstream_server_port: 8530
+
+# === NETWORK EQUIPMENT SETTINGS ===
+# IP and name of the networkdevices that will use Radius Authentication and/or need to be accessible using SNMP.
+# A Shared Secret is used for Radius Authentication which is stored in the Keepass db under the 'Network/RADIUS Shared Secret' entry.
+# SNMP is used by SHCT to collect data from network equipment (and may also be used for other purposes, such as WUG).
+# SNMP credential(s) must be provided in the Keepass db under the 'Network Devices SNMP' entry.
+radius_secret: "{{ lookup('viczem.keepass.keepass', 'Network/RADIUS_Shared_Secret', 'password') }}"
+snmp_user: "{{ lookup('viczem.keepass.keepass', 'Network/SNMP_read-only_user', 'username') }}"
+snmp_user_pw: "{{ lookup('viczem.keepass.keepass', 'Network/SNMP_read-only_user', 'password') }}"
+snmp_readonly_community: "{{ lookup('viczem.keepass.keepass', 'Network/SNMP_read-only_community', 'password') }}"
+# Valid values for networkdevices:
+# ipaddress: [valid IP-address without CIDR notation (/nn) for the subnet mask]
+# devicename: Only th use of lowercase latin letters [a-z], numbers [0-9] and the hyphen-minus character [-] is allowed in a valid hostname.
+#   In case of combining the hostname with the domain name, a dot [.] is used to separate the hostname from the domain name.
+#   Examples of valid host names:
+#   Local hostnames: PDC01, SDC01, HIS0164
+#   Private domain hostnames: pdc01.yokogawa, sdc01.yokogawa, his0164.yokogawa
+#   Private domain FQDN hostnames: pdc01.yokogawa.local, sdc01.yokogawa.local, his0164.yokogawa.local
+#   Internet registered domain FQDN hostnames (we don't have this most of the time): pdc01.yokogawa.nl, sdc01.yokogawa.nl, his0164.yokogawa.nl
+# uses_radius: Valid values: boolean [ true | false ]
+# snmp_version: Valid values: integer [1-5]
+#   1： SNMPv2c
+#   2： SNMPv3_MD5
+#   3： SNMPv3_MD5_DES
+#   4： SNMPv3_SHA
+#   5： SNMPv3_SHA_AES
+networkdevices:
+  - { ipaddress: '192.168.1.1', devicename: 'testdevice1', uses_radius: true, snmp_version: 3 }
+  - { ipaddress: '192.168.1.2', devicename: 'testdevice2', uses_radius: true, snmp_version: 3 }
+
+# === SQL EXPRESS SETTINGS ===
+sql_sa_acc: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/MS_SQL/sa', 'username') }}"
+sql_sa_acc_pw: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/MS_SQL/sa', 'password') }}"
+
+# === EPO SETTINGS ===
+epo_sql_instance: SQLEPO
+epo_sql_inst_tcp_port: 49750
+epo_sql_sysadmin: "{{ lookup('viczem.keepass.keepass', 'Windows/DomainUsers/YokoAdmin', 'username') }}"
+epo_sql_sysadmin_pw: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/MS_SQL/sa', 'password') }}"
+epo_login_name: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Trellix/ePO/login', 'username') }}"
+epo_login_name_pw: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Trellix/ePO/login', 'password') }}"
+epo_keystore_pw: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/Trellix/ePO/keystore', 'password') }}"
+epo_license_key: VSF7Z-TEGPK-V3WDH-WDMFU-8CTNY
+
+# === VEEAM SETTINGS ===
+veeam_sql_instance: VEEAMSQL2016
+veeam_sql_inst_tcp_port: 49751
+# The repository is the location where Veeam will store the backups.
+veeam_repository_location: C:\Yokogawa\Backups
+
+# === MANAGEMENT SERVER HYPER-V SETTINGS ===
+# Management servers will have two RAID volumes.
+# First RAID volume is used to install local OS (PDC or SDC).
+# Second RAID volume is used to hold VM and Backup files.
+# Create and initialize the two RAID volumes (from BIOS) before starting deployment.
+
+# Datastore volume name. Only change if required for strict reason.
+datastore_volume_name: 'DATASTORE'
+
+# Datastore folder names. Best to leave default.
+# Datastore folder function descriptions are fixed. Do not change them, because they are used in further steps during deployment.
+datastore_folders:
+  - { name: 'VM', full: 'Administrators', function: 'Store Hyper-V VM files' }
+  - { name: 'Backup', full: 'Administrators', function: 'Store system back-ups' }
+
+# === AUTOLOGON SETTINGS ===
+local_admin_autologon:
+  - { name: 'DefaultUserName', type: string, data: '{{ win_local_admin }}' }
+  - { name: 'DefaultPassword', type: string, data: '{{ win_local_admin_pw }}' }
+  - { name: 'DefaultDomainName', type: string, data: '{{ ansible_hostname }}' }
+  - { name: 'AutoAdminLogon', type: string, data: 1 }
+  - { name: 'AutoLogonCount', type: dword, data: 999 }
+
+domain_admin_autologon:
+  - { name: 'DefaultUserName', type: string, data: '{{ win_domain_yokoadmin }}'}
+  - { name: 'DefaultPassword', type: string, data: '{{ win_domain_yokoadmin_pw }}' }
+  - { name: 'DefaultDomainName', type: string, data: '{{ win_domain_name.split(".")[0] }}' }
+  - { name: 'AutoAdminLogon', type: string, data: 1 }
+  - { name: 'AutoLogonCount', type: dword, data: 999 }
+
+clear_admin_autologon:
+  - { name: 'DefaultUserName', type: string, data: '' }
+  - { name: 'DefaultPassword', type: string, data: '' }
+  - { name: 'DefaultDomainName', type: string, data: '' }
+  - { name: 'AutoAdminLogon', type: string, data: 0 }
+  - { name: 'AutoLogonCount', type: dword, data: 0 }

@@ -1,0 +1,5 @@
+---
+ansible_user: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/AnsibleAccount', 'username') }}"
+ansible_password: "{{ lookup('viczem.keepass.keepass', '3rd_Party_Products/zabbix/AnsibleAccount', 'password') }}"
+ansible_port: 22
+ansible_connection: ssh
