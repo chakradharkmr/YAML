@@ -1,0 +1,133 @@
+---
+- name: Set 8.3 file naming convention
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem
+    name: NtfsDisable8dot3NameCreation
+    data: 0
+    type: dword
+  register: set_8dot3_filenames
+
+- name: Reboot if required
+  ansible.windows.win_reboot:
+  when: set_8dot3_filenames.data_changed
+
+- name: Download ePO installation files - part 1
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ePO_Yokogawa_Advanced\{{ epo_version }}
+    dest: '{{ win_local_sw_depot }}\ePO_Yokogawa_Advanced\{{ epo_version }}'
+    flags: /E
+
+- name: Download ePO installation files - part 2
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ePO_Yokogawa_Advanced\{{ epo_main_install_folder }}
+    dest: '{{ win_local_sw_depot }}\ePO_Yokogawa_Advanced\{{ epo_version }}\{{ epo_main_install_folder }}'
+    flags: /E
+
+- name: Create folder to stage extension packages
+  ansible.windows.win_file:
+    path: '{{ epo_install_dir }}\Extensions\'
+    state: directory
+
+- name: Download Extensions - pre-stage
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ePO_Yokogawa_Advanced\{{ epo_version }}\Extensions
+    dest: '{{ epo_install_dir }}\Extensions'
+    flags: /E
+
+- name: Install ePolicy Orchestrator - this may take about 15 minutes
+  ansible.windows.win_package:
+    path: '{{ epo_depot }}\{{ epo_main_install_folder }}\Setup.exe'
+    product_id: '{{ epo_main_install_guid }}'
+    arguments:
+      - '/qn'
+      - 'MFSADMINUSERNAME_UE={{ epo_login_name }}'
+      - 'MFSADMINPASSWORD_UE={{ epo_login_name_pw }}'
+      - 'MFSADMINVERIFYPASSWORD={{ epo_login_name_pw }}'
+      - 'MFSDATABASESERVERNAME={{ inventory_hostname }}'
+      - 'MFSDATABASEINSTANCENAME={{ sql_instance }}'
+      - 'MFSDATABASEPORT={{ sql_inst_tcp_port }}'
+      - 'MFSDATABASENAME=EPODB'
+      - 'MFSDATABASEUSERNAME_UE={{ sql_sa_acc }}'
+      - 'MFSDATABASEPASSWORD_UE={{ sql_sa_acc_pw }}'
+      - 'AGENTPORT=8080'
+      - 'AGENTSECUREPORT=443'
+      - 'TOMCATSECUREPORT=8443'
+      - 'TOMCATNOTIFICATIONPORT=8079'
+      - 'TOMCATAUTHPORT=8444'
+      - 'TOMCATSESSIONTIMEOUT=600'
+      - 'TOMCATSHUTDOWNPORT=9000'
+      - 'MFSDATABASEAUTHENTICATION=2'
+      - 'SQLUDPPORTISENABLED=1'
+      - 'IGNOREPROPINI=1'
+      - 'SKIPAUTOPRODINST=1'
+      - 'MFSKEYSTOREPASSWORD={{ epo_keystore_pw }}'
+      - 'MFSVERIFYKEYSTOREPASSWORD={{ epo_keystore_pw }}'
+      - 'LICENSEKEY={{ epo_license_key }}'
+      - 'ENABLETELEMETRY=0'
+      - 'DISABLEAH=0'
+  register: epo_510_result
+
+- name: Remove Telemetry Extension
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/remote/ext.uninstall?extension=TELEMTRY1000&force=true'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Remove UpgradeAssistant Extension
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/remote/ext.uninstall?extension=EndpointUpgradeAssistant&force=true'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Pause 30 seconds to allow ePO server to settle
+  ansible.builtin.pause:
+    seconds: 30
+
+- name: Set SQL auto close option to OFF on Core and Event databases
+  ansible.windows.win_shell: |
+    Invoke-Sqlcmd -Query "ALTER DATABASE [{{ epo_database }}] SET AUTO_CLOSE OFF" `
+     -ServerInstance "{{ ansible_hostname }}\{{ epo_sql_instance }}" -Username sa -Password {{ epo_sql_sysadmin_pw }}
+  loop:
+    - 'EPODB'
+    - 'EPODB_Events'
+  loop_control:
+    loop_var: epo_database
+  changed_when: false
+
+- name: Get status information on the Update folder for ePO
+  ansible.windows.win_stat:
+    path: '{{ epo_depot }}\ePO_Update'
+  register: epo_update_folders
+
+- name: Get list of ePO updates to install
+  ansible.windows.win_find:
+    paths: '{{ epo_depot }}\ePO_Update'
+    file_type: directory
+  register: epo_updates_info
+  when: epo_update_folders.stat.exists
+
+- name: Create list of updates
+  ansible.builtin.set_fact:
+    epo_update_paths: "{{ epo_updates_info.files | selectattr('path') | map(attribute='path') | list }}"
+    epo_updates: "{{ epo_updates_info.files | selectattr('path') | map(attribute='filename') | list }}"
+  when: epo_updates_info.examined > 0
+
+- name: Run updates
+  ansible.builtin.include_tasks: st_epo_update.yml
+  loop: '{{ epo_update_paths }}'
+  when: epo_updates_info.examined > 0
+
+- name: Disable IE Enhanced Security
+  ansible.builtin.script: files/IE_DisableEnhSec.ps1
+  changed_when: false
+
+- name: Execute post-installation tasks
+  ansible.builtin.include_tasks: st_epo_post.yml

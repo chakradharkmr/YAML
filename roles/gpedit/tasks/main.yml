@@ -1,0 +1,43 @@
+---
+- name: Check if PowerShell PolicyEditor module is installed
+  ansible.windows.win_shell: |
+    $installedModules = Get-InstalledModule
+    foreach ($installedModule in $installedModules) {
+      if ($installedModule.Name -eq 'PolicyFileEditor') {
+        Write-Host true
+      }
+    }
+    Write-Host false
+  changed_when: false
+  register: psmodule_policyeditor_installed
+
+- name: Install PowerShell PolicyEditor module
+  when: psmodule_policyeditor_installed.stdout_lines[0] == "false"
+  block:
+    - name: Download PowerShell nuget Package manager folder to C:\Program Files
+      community.windows.win_robocopy:
+        src: \\{{ sw_src_path }}\PowerShell\PackageManagement
+        dest: 'C:\Program Files\PackageManagement'
+        flags: /E
+
+    - name: Download PolicyEditor package
+      community.windows.win_robocopy:
+        src: \\{{ sw_src_path }}\PowerShell\PSPackages
+        dest: '{{ win_local_sw_depot }}\PSPackages'
+        flags: /E
+
+    - name: Register local PSRepository
+      ansible.windows.win_shell: |
+        Register-PSRepository -Name Local -SourceLocation '{{ win_local_sw_depot }}\PSPackages' -InstallationPolicy Trusted
+
+    - name: Install PolicyFileEditor module
+      ansible.windows.win_shell: |
+        $packages = Find-Module -Repository Local
+        foreach ($package in $packages) {
+          Install-Module -Name $package.Name -Repository Local
+        }
+  # block end
+
+- name: Set policy settings
+  ansible.builtin.include_tasks: st_set_policy.yml
+  loop: '{{ gpedit_target_policy_settings }}'

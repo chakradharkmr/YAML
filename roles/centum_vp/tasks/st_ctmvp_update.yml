@@ -1,0 +1,67 @@
+---
+- name: Check installation status of update {{ item }}
+  ansible.windows.win_stat:
+    path: '{{ centum_vp_install.cs3k_top_path }}\INSTALL\{{ item }}.txt'
+  register: vp_update_txt_file_info
+
+- name: Install CENTUM-VP update {{ item }}
+  when: not vp_update_txt_file_info.stat.exists
+  block:
+    - name: Unzip archive of CENTUM-VP update {{ item }}
+      community.windows.win_unzip:
+        src: '{{ local_ctmvp_depot }}\Updates\{{ item }}.zip'
+        dest: '{{ local_ctmvp_depot }}\Updates\{{ item }}'
+
+    - name: Check if the update needs a reboot
+      ansible.windows.win_stat:
+        path: '{{ local_ctmvp_depot }}\Updates\{{ item }}\REBOOT'
+      register: vp_update_reboot
+
+    - name: Deploy installation bootstrap
+      ansible.windows.win_template:
+        src: ctmvp_update_install_bootstrap.cmd
+        dest: '{{ local_ctmvp_depot }}\ctmvp_update_install_bootstrap.cmd'
+
+    - name: Deploy installation AutoIt script
+      ansible.windows.win_template:
+        src: ctmvp_update_install.au3
+        dest: '{{ local_ctmvp_depot }}\ctmvp_update_install.au3'
+
+    - name: Set RunOnce in registry to execute the installaton bootstrapper at next reboot
+      ansible.windows.win_regedit:
+        path: HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce
+        name: ctmvp
+        data: '{{ local_ctmvp_depot }}\ctmvp_update_install_bootstrap.cmd'
+        type: string
+
+    - name: Reboot
+      ansible.windows.win_reboot:
+        msg: Reboot by Y-dPloy to run CENTUM-VP update installation at next boot
+
+    # Since Ansible takes too long to reconnect to the host after reboot, especially if the target is a VM,
+    # we have to create some check if Ansible is ready to proceed. For that reason we create a test file on the host after the reboot.
+    # The RunOnce script on the target node will wait for that file to exist before starting further actions.
+    - name: Create a test file on the target host
+      ansible.windows.win_file:
+        path: '{{ local_ctmvp_depot }}\y-dploy_connected.test'
+        state: touch
+
+    - name: Wait for CENTUM-VP update installation to start (times out after 5 minutes)
+      community.windows.win_wait_for_process:
+        process_name_exact: Setup
+        state: present
+        timeout: 300
+        sleep: 5
+
+    - name: Wait for CENTUM-VP installation to stop (times out after 5 minutes)
+      community.windows.win_wait_for_process:
+        process_name_exact: Setup
+        state: absent
+        timeout: 300
+
+    - name: Check installation status of update {{ item }}
+      ansible.windows.win_stat:
+        path: '{{ centum_vp_install.cs3k_top_path }}\INSTALL\{{ item }}.txt'
+      register: vp_update_txt_file_after_info
+      failed_when: not vp_update_txt_file_after_info.stat.exists
+  # block end

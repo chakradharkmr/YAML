@@ -1,0 +1,27 @@
+---
+- name: Deploy pre-installation bootstrap
+  ansible.windows.win_template:
+    src: ctmvp_preinstall_bootstrap.cmd
+    dest: '{{ local_ctmvp_depot }}\ctmvp_preinstall_bootstrap.cmd'
+
+- name: Deploy pre-installation AutoIt script
+  ansible.windows.win_template:
+    src: ctmvp_preinstall.au3
+    dest: '{{ local_ctmvp_depot }}\ctmvp_preinstall.au3'
+
+- name: Set RunOnce in registry to execute the pre-installaton bootstrapper at next reboot
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce
+    name: ctmvp
+    data: '{{ local_ctmvp_depot }}\ctmvp_preinstall_bootstrap.cmd'
+    type: string
+
+- name: Reboot to run CENTUM-VP pre-install at next boot
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy to run CENTUM-VP pre-install at next boot
+    pre_reboot_delay: 10
+
+- name: Create a test file on the target host
+  ansible.windows.win_file:
+    path: '{{ local_ctmvp_depot }}\y-dploy_connected.test'
+    state: touch

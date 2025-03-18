@@ -1,0 +1,42 @@
+---
+- name: Check if un-initilized disk exists
+  ansible.windows.win_shell: if (Get-Disk | Where partitionstyle -eq ‘raw’ -ErrorAction SilentlyContinue) {Write-Host true} ELSE {Write-Host false}
+  changed_when: false
+  register: raw_disk_exists
+
+- name: Initialize un-initialzed partition and format with {{ datastore_volume_name }}
+  ansible.windows.win_shell: |
+    Get-Disk |
+    Where partitionstyle -eq 'raw' |
+    Initialize-Disk -PartitionStyle GPT -PassThru |
+    New-Partition -AssignDriveLetter -UseMaximumSize |
+    Format-Volume -FileSystem NTFS -NewFileSystemLabel "{{ datastore_volume_name }}" -Confirm:$false
+  when: raw_disk_exists.stdout_lines[0] == "true"
+
+- name: Check existance of volume {{ datastore_volume_name }}
+  ansible.windows.win_shell: |
+    if (Get-Volume -FilesystemLabel {{ datastore_volume_name }} -ErrorAction SilentlyContinue) {
+      Write-Host true} ELSE {Write-Host false
+    }
+  changed_when: false
+  register: datastore_volume_exists
+  failed_when: datastore_volume_exists.stdout_lines[0] == "false"
+
+- name: Get volume drive letter {{ datastore_volume_name }}
+  ansible.windows.win_shell: $volumes = Get-Volume -FilesystemLabel {{ datastore_volume_name }}; $volumes.Driveletter[0]
+  changed_when: false
+  register: datastore_drive_letter
+  when: datastore_volume_exists.stdout_lines[0] == "true"
+
+- name: Create default folders {{ datastore_volume_name }}
+  ansible.windows.win_file:
+    path: '{{ datastore_drive_letter.stdout_lines[0] }}:\{{ item.name }}'
+    state: directory
+  loop: '{{ datastore_folders }}'
+
+- name: Set default folder sharing {{ datastore_volume_name }}
+  ansible.windows.win_share:
+    name: '{{ item.name }}'
+    path: '{{ datastore_drive_letter.stdout_lines[0] }}:\{{ item.name }}'
+    full: '{{ item.full }}'
+  loop: '{{ datastore_folders }}'

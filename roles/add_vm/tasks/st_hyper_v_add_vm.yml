@@ -1,0 +1,134 @@
+---
+- name: Get drive letter of {{ datastore_volume_name }}
+  ansible.windows.win_shell: |
+    if (Get-Volume -FilesystemLabel {{ datastore_volume_name }} -ErrorAction SilentlyContinue) {
+      $volumes = Get-Volume -FilesystemLabel {{ datastore_volume_name }}; $volumes.Driveletter[0]
+    } ELSE {
+      Write-Host false
+    }
+  register: datastore_drive_letter
+  changed_when: false
+  failed_when: datastore_drive_letter.stdout_lines[0] == "false"
+
+- name: Get name of Hyper-V folder on {{ datastore_volume_name }}
+  ansible.builtin.set_fact:
+    vm_folder: "{{ item.name }}"
+  loop: "{{ datastore_folders }}"
+  when: '"Store Hyper-V VM files" in item.function'
+
+- name: Check if Hyper-V virtual switch exists
+  ansible.windows.win_shell: if (Get-VMSwitch -Name ethernetSwitch -ErrorAction SilentlyContinue) {Write-Host true} ELSE {Write-Host false}
+  changed_when: false
+  register: hyperv_switch_exists
+
+- name: Create Hyper-V virtual switches
+  ansible.windows.win_shell: |
+    Import-Module Hyper-V
+    $ethernet = Get-NetAdapter -Name Ethernet
+    New-VMSwitch -Name ethernetSwitch -NetAdapterName $ethernet.Name -AllowManagementOS $true -Notes 'Parent OS, VMs, LAN'
+    # New-VMSwitch -Name privateSwitch -SwitchType Private -Notes 'Internal VMs only'
+    # New-VMSwitch -Name internalSwitch -SwitchType Internal -Notes 'Parent OS, and internal VMs'
+  changed_when: false
+  async: 40
+  poll: 10
+  when: hyperv_switch_exists.stdout_lines[0] == "false"
+
+- name: Check existance of Hyper-V virtual machine {{ vm_name }}
+  ansible.windows.win_shell: if (Get-VM -Name {{ vm_name }} -ErrorAction SilentlyContinue) {Write-Host true} ELSE {Write-Host false}
+  changed_when: false
+  register: hyperv_machine_exists
+
+- name: Create new VM with name {{ vm_name }}
+  ansible.windows.win_shell: |
+    New-VM -Name {{ vm_name }} `
+      -Path '{{ datastore_drive_letter.stdout_lines[0] }}:\{{ vm_folder }}' `
+      -NoVHD `
+      -Generation 2 `
+      -MemoryStartupBytes 1GB `
+      -SwitchName ethernetSwitch
+  when: hyperv_machine_exists.stdout_lines[0] == "false"
+
+- name: Set details for {{ vm_name }}
+  ansible.windows.win_shell: |
+    Set-VM -Name {{ vm_name }} `
+      -ProcessorCount 4 `
+      -DynamicMemory `
+      -MemoryMinimumBytes 2GB `
+      -MemoryStartupBytes 4GB `
+      -MemoryMaximumBytes 12GB `
+      -AutomaticStartAction Start `
+      -AutomaticStartDelay 30 `
+      -AutomaticStopAction Shutdown
+  when: hyperv_machine_exists.stdout_lines[0] == "false"
+
+- name: Create Virtual harddisk Folder for {{ vm_name }}
+  ansible.windows.win_file:
+    path: '{{ datastore_drive_letter.stdout_lines[0] }}:\{{ vm_folder }}\{{ vm_name }}\Virtual Harddisks'
+    state: directory
+
+- name: Check excistance of Virtual Harddisk for {{ vm_name }}
+  ansible.windows.win_stat:
+    path: '{{ datastore_drive_letter.stdout_lines[0] }}:\{{ vm_folder }}\{{ vm_name }}\Virtual Harddisks\{{ vm_name }}.vhdx'
+  register: vhd_file
+
+- name: Create new Virtual Harddisk for {{ vm_name }}
+  ansible.windows.win_shell: |
+    $vhdpath = "{{ datastore_drive_letter.stdout_lines[0] }}:\{{ vm_folder }}\{{ vm_name }}\Virtual Harddisks\{{ vm_name }}.vhdx"
+    $vhdsize = 127GB
+    New-VHD -Path $vhdpath -Dynamic -SizeBytes $vhdsize
+  when: not vhd_file.stat.exists
+
+- name: Link the new Virtual Harddisk to {{ vm_name }}
+  ansible.windows.win_shell: |
+    Add-VMHardDiskDrive -VMName {{ vm_name }} `
+    -Path "{{ datastore_drive_letter.stdout_lines[0] }}:\{{ vm_folder }}\{{ vm_name }}\Virtual Harddisks\{{ vm_name }}.vhdx" `
+    -ControllerType SCSI -ControllerNumber 0
+  when: not vhd_file.stat.exists
+  register: mount_vm_disk
+
+- name: Start the new VM
+  ansible.windows.win_shell: |
+    If (Get-VM -ErrorAction SilentlyContinue | Where-Object {$_.Name -eq '{{ vm_name }}'}) {
+      If (Get-VM -ErrorAction SilentlyContinue | Where-Object {$_.Name -eq '{{ vm_name }}' -and $_.State -eq 'Running'}) {
+        Write-Host 'INFO - VM Already Running'
+      } else {
+        Start-VM -Name {{ vm_name }}
+        Write-Host 'SUCCESS - VM Started'
+      }
+    } else {
+      Write-Host 'ERROR - VM Not Found'
+    }
+  register: start_vm
+  changed_when: start_vm.stdout_lines[0] == 'SUCCESS - VM Started'
+  failed_when: start_vm.stdout_lines[0] == 'ERROR - VM Not Found'
+
+# TODO: OS must be deployed on the new VM here from deployment server.
+# This requires al little user intervention, perhaps we can automate this later on.
+- name: Pause to wait for OS deployment to be finished
+  ansible.builtin.pause:
+    prompt: Deploy {{ vm_name }} using MDT, press enter when deployment is finished
+
+# During the following task, Ansible runs a script on the Hyper-V host that then invokes commands inside the new VM on the host.
+# To make sure this will also work when different deployment credentials are used, a mechanism is provided to pass
+# a username and password in a secure manner. For now, the credentials for the ansible_user are set here in the code.
+# This is only required once, after this task, Ansible can address the VM directly on it's inventory IP-address.
+- name: Configure the network adapter of the new VM
+  ansible.windows.win_shell: |
+    [string]$userName = '{{ vm_name }}\{{ onboard_ansible_user }}'
+    [string]$userPassword = '{{ onboard_ansible_user_pw }}'
+    [securestring]$secStringPassword = ConvertTo-SecureString $userPassword -AsPlainText -Force
+    [pscredential]$credObject = New-Object System.Management.Automation.PSCredential ($userName,$secStringPassword)
+    $VM = New-PSSession -VMName {{ vm_name }} -Credential $credObject
+    Invoke-Command -Session $VM -ScriptBlock {
+      $ifIndex = Get-NetIPInterface | where {($_.InterfaceAlias -eq 'Ethernet') -and ($_.AddressFamily -eq 'IPv4')} | Select-Object ifIndex
+      if (Get-NetIPAddress –InterfaceIndex $ifIndex.ifIndex | Where-Object {$_.IPAddress -eq '{{ hostvars[vm_name]['ansible_host'] }}'}) {
+        Write-Host 'INFO - IP-Address already exists'
+      } else {
+        Write-Host 'SUCCESS - IP-Address set'
+        New-NetIPAddress –InterfaceIndex $ifIndex.ifIndex -IPAddress {{ hostvars[vm_name]['ansible_host'] }} –PrefixLength 24
+        Set-NetConnectionProfile –InterfaceIndex $ifIndex.ifIndex -NetworkCategory "Private"
+      }
+    }
+    Remove-PSSession -VMName {{ vm_name }}
+  register: set_vm_ip
+  changed_when: set_vm_ip.stdout_lines[0] == 'SUCCESS - IP-Address set'

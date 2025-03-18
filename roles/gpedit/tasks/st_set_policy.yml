@@ -1,0 +1,28 @@
+---
+- name: Get current policy setting
+  ansible.windows.win_shell: |
+    $UserDir = "{{ item.user_dir }}"
+    $RegPath = '{{ item.reg_path }}'
+    $RegName = '{{ item.reg_name }}'
+    $valueData = Get-PolicyFileEntry -Path $UserDir -Key $RegPath -ValueName $RegName
+    $valueData.Data
+    Write-Host "End"
+  changed_when: false
+  register: current_policy_setting
+
+- name: Set target policy setting if the current setting does not match the target setting
+  when: current_policy_setting.stdout_lines[0] != item.reg_data
+  block:
+    - name: Set target policy setting
+      ansible.windows.win_shell: |
+        $UserDir = "{{ item.user_dir }}"
+        $RegPath = '{{ item.reg_path }}'
+        $RegName = '{{ item.reg_name }}'
+        $RegData = '{{ item.reg_data }}'
+        $RegType = '{{ item.reg_type }}'
+        Set-PolicyFileEntry -Path $UserDir -Key $RegPath -ValueName $RegName -Data $RegData -Type $RegType
+
+    - name: Force a policy update
+      ansible.windows.win_shell: gpupdate /force
+      changed_when: false
+  # block end

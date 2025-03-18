@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: Michael van Dooren
+  description: Installs and Configures Active Directory Certificate Services.
+               Installs a new Enterprise Root CA with default crypto settings (RSA2048) and a 12 year valid certificate.
+               Imports PSModule to export/import certificate templates.
+               Imports Web Server OT template with a 10 year validity.
+               Adds IIS for Certificate Signing Requests via web.
+               Requests and signs certificate to make CERTSRV website HTTPS.
+               This role will only work if installed on the PDC.
+  company: Yokogawa Europe Solutions B.V.
+  license: none
+  min_ansible_version: '2.10.6'
+  platforms:
+    - name: Windows
+      release:
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags: []

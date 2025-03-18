@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: <your name>
+  description: <description of the role>
+  company: Yokogawa Europe Solutions B.V.
+  license: none
+  min_ansible_version: '2.12.5'
+  platforms:
+    - name: Windows
+      release:
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags: []
+
+dependencies: []
+# remove the two square brackets and add your dependencies here, example:
+# dependencies:
+# - role: win_local_sw_depot

@@ -1,0 +1,55 @@
+---
+- name: Set OFFUSER password
+  ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ctm_offuser_exe }} -s -p {{ win_offuser_pw }}'
+  register: offuser_pw_return
+  failed_when: >
+    ("No such file or directory" in offuser_pw_return.stdout) or
+    (offuser_pw_return.stderr != '') or
+    (offuser_pw_return.rc > 1)
+
+- name: Set CTM_PROCESS password
+  ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ctm_process_exe }} -s -p {{ win_ctm_process_pw }}'
+  register: ctm_process_pw_return
+  failed_when: >
+    ("No such file or directory" in ctm_process_pw_return.stdout) or
+    (ctm_process_pw_return.stderr != '') or
+    (ctm_process_pw_return.rc > 1)
+
+- name: Set LIC_PROCESS password
+  ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_lic_process_exe }} -s -p {{ win_lic_process_pw }}'
+  register: lic_process_pw_return
+  failed_when: >
+    ("No such file or directory" in lic_process_pw_return.stdout) or
+    (lic_process_pw_return.stderr != '') or
+    (lic_process_pw_return.rc > 1)
+
+- name: Set ADS_PROCESS password
+  ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ads_process_exe }} -s -p {{ win_ads_process_pw }}'
+  register: ads_process_pw_return
+  failed_when: >
+    ("No such file or directory" in ads_process_pw_return.stdout) or
+    (ads_process_pw_return.stderr != '') or
+    (ads_process_pw_return.rc > 1)
+
+- name: Set ADS_AGENT password
+  ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ads_ciagent_exe }} -s -p {{ win_ads_agent_pw }}'
+  register: ads_agent_pw_return
+  failed_when: >
+    ("No such file or directory" in ads_agent_pw_return.stdout) or
+    (ads_agent_pw_return.stderr != '') or
+    (ads_agent_pw_return.rc > 1)
+
+# - name: Set RDC_PROCESS password
+#   ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_rds_ciagent_exe }} -s -p {{ win_rdc_process_pw }}'
+
+# - name: Set UGS_PROCESS password
+#   ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ugs_process_exe }} -s -p {{ win_ugs_process_pw }}'
+
+# - name: Set VNT_COMMON password
+#   ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ykg_vnetip_user }} -u VNT_COMMON -s -p {{ win_vnt_common_pw }}'
+
+# - name: Set VNT_NVP_CORE password
+#   ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ykg_vnetip_user }} -u VNT_NVP_CORE -s -p {{ win_vnt_nvp_core_pw }}'
+
+# - name: Set VNT_BKNET password
+#   ansible.windows.win_command: '{{ local_ctmvp_depot }}\{{ create_ykg_vnetip_user }} -u VNT_BKNET -s -p {{ win_vnt_bknet_pw }}'

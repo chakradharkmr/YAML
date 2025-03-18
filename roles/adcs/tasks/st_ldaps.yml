@@ -1,0 +1,23 @@
+- name: Editing Default Domain Controllers policy - LDAP Server Signing requirements
+  ansible.windows.win_shell: |
+      $ldapsstatus = (Get-GPRegistryValue -Guid '6AC1786C-016F-11D2-945F-00C04FB984F9' `
+      -Key 'HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters' -ValueName ldapserverintegrity).Value
+        if ($ldapsstatus -match 2) { Write-Host 'ERROR - Server Signing is already set'
+        } Else {
+        Set-GPRegistryValue -Guid '6AC1786C-016F-11D2-945F-00C04FB984F9' `
+        -Key "HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters" -ValueName ldapserverintegrity -Type dword -Value 2
+        }
+  register: result
+  changed_when: (result.stdout.find("ERROR - Server Signing is already set") == -1)
+
+- name: Editing Default Domain Controllers policy - LDAP server channel binding token requirements
+  ansible.windows.win_shell: |
+      $ldapsstatus = (Get-GPRegistryValue -Guid '6AC1786C-016F-11D2-945F-00C04FB984F9' `
+      -Key 'HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters' -ValueName LdapEnforceChannelBinding).Value
+        if ($ldapsstatus -match 2) { Write-Host 'ERROR - Token Integrity is already set'
+        } Else {
+        Set-GPRegistryValue -Guid '6AC1786C-016F-11D2-945F-00C04FB984F9' `
+        -Key "HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters" -ValueName LdapEnforceChannelBinding -Type dword -Value 2
+        }
+  register: result
+  changed_when: (result.stdout.find("ERROR - Token Integrity is already set") == -1)

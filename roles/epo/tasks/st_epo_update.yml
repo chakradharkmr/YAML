@@ -1,0 +1,27 @@
+---
+- name: Stop ePO services
+  ansible.windows.win_service:
+    name: '{{ epo_service }}'
+    state: stopped
+  loop:
+    - 'EPOAHAPACHESRV'
+    - 'EPOTOMCATSRV5100'
+    - 'EPOEVENTPARSERSRV'
+  loop_control:
+    loop_var: epo_service
+
+- name: Deploy installation batch file to run the original install.bat contents elevated
+  ansible.windows.win_template:
+    src: install_update.cmd
+    dest: '{{ item }}\resources\app\install_update.cmd'
+
+- name: Install ePolicy Orchestrator Updates
+  ansible.windows.win_command: '{{ item }}\resources\app\install_update.cmd'
+  register: epo_update_result
+  changed_when: epo_update_result.rc == 0 and 'Update is already installed' not in epo_update_result.stdout
+
+- name: Reboot after ePO update
+  when: epo_update_result.changed
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy after CENTUM-VP update installation
+    pre_reboot_delay: 10

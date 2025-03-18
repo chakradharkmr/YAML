@@ -1,0 +1,74 @@
+---
+- name: Install Vnet/IP Open Communication Driver (BUS2) and disable it and disable two unused devices
+  ansible.windows.win_shell: |
+    if (Get-WmiObject Win32_PNPEntity | Where-Object {$_.Name -like 'Vnet/IP Open Communication Driver (BUS2)'}) {
+      Write-Host 'INFO - Vnet/IP Open Communication Driver (BUS2) already installed'
+    } else {
+      Write-Host 'SUCCESS - Vnet/IP Open Communication Driver (BUS2) installed'
+      $os = (Get-WMIObject win32_operatingsystem).name
+      if ($os -like 'Microsoft Windows 7 *') {$path = '{{ local_product_path }}\COMDRVOPN\WIN7'}
+      if ($os -like 'Microsoft Windows 10 *') {$path = '{{ local_product_path }}\COMDRVOPN\WIN10\BUS2'}
+      if ($os -like 'Microsoft Windows Server 2016 *') {$path = '{{ local_product_path }}\COMDRVOPN\WINSVR2016\BUS2'}
+      Get-ChildItem $path -Recurse -Filter '*.inf' | ForEach-Object { PNPUtil.exe /add-driver $_.FullName /install }
+      Get-PnpDevice | Where-Object {$_.InstanceId -like 'PCI\VEN_1281&DEV_001*'} | Disable-PnpDevice -confirm:$false
+    }
+  register: vnetip_open_driver
+  changed_when: vnetip_open_driver.stdout_lines[0] == 'SUCCESS - Vnet/IP Open Communication Driver (BUS2) installed'
+  when: vnet_adapter_installed.stdout_lines[0] == 'INFO - Vnet card hardware found'
+
+- name: Check if Vnet driver is installed
+  ansible.windows.win_shell: |
+    if (Get-WmiObject Win32_PNPEntity | Where-Object {$_.Name -like 'Yokogawa Vnet Adapter'}) {
+      Write-Host 'INFO - Vnet driver is installed'
+    } else {
+      Write-Host 'INFO - Vnet driver is not installed'
+    }
+  changed_when: false
+  register: vnet_driver_installed
+
+- name: Install Vnet driver
+  when: vnet_driver_installed.stdout_lines[0] == 'INFO - Vnet driver is not installed'
+  block:
+    - name: Deploy vnet driver installation bootstrap
+      ansible.windows.win_template:
+        src: vnet_driver_install_bootstrap.cmd
+        dest: '{{ local_product_path }}\vnet_driver_install_bootstrap.cmd'
+
+    - name: Deploy AutoIt script to install Vnet driver
+      ansible.windows.win_template:
+        src: vnet_driver_install.au3
+        dest: '{{ local_product_path }}\vnet_driver_install.au3'
+
+    - name: Set RunOnce in registry to execute the Vnet driver installation bootstrapper at next reboot
+      ansible.windows.win_regedit:
+        path: HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce
+        name: vnetdriver
+        data: '{{ local_product_path }}\vnet_driver_install_bootstrap.cmd'
+        type: string
+
+    - name: Set autologon to local administrator (items hidden for security reasons)
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+        name: '{{ item.name }}'
+        data: '{{ item.data }}'
+        type: '{{ item.type }}'
+      loop: '{{ local_admin_autologon }}'
+      no_log: true
+
+    - name: Reboot
+      ansible.windows.win_reboot:
+        msg: Reboot by Y-dPloy to install Vnet driver at next boot
+        pre_reboot_delay: 10
+
+    - name: Create a test file on the target host
+      ansible.windows.win_file:
+        path: '{{ local_ctmvp_depot }}\y-dploy_connected.test'
+        state: touch
+
+    - name: Wait until Yokogawa Vnet Adapter driver is installed before continuing
+      ansible.windows.win_wait_for:
+        path: C:\Windows\System32\drivers\bknic.sys
+        delay: 10
+        timeout: 500
+        sleep: 2
+  # block end

@@ -1,0 +1,91 @@
+---
+local_ctmvp_depot: '{{ win_local_sw_depot }}\CENTUM-VP\{{ ctmvp_revision }}'
+
+ctmvp_revision_guid:
+  R6.07.00: '{83F8D9CF-56A5-4CE5-8D40-BDDB07DE2679}'
+  R6.09.00: '{D181AC69-EFF0-4AC4-B7C8-D1D53EC56DC5}'
+  R6.10.00: '{EE6C16D1-E9D7-42D6-9AD4-AF55773D3E75}'
+  R6.11.00: '{EE6C16D1-E9D7-42D6-9AD4-AF55773D3E75}'
+
+centum_vp_install:
+  install_type: Install
+  package_type: '{{ vp_package_type }}'
+  cs3k_top_path: C:\CENTUMVP
+  location_of_project_database: "{{ hostvars[groups['CENTUM'][0]]['inventory_hostname_short'] }}"
+  console_type: "General PC"
+  touch_use: "0"
+  touch_confirm: "0"
+  upper_panel: "0"
+  lower_panel: "0"
+  touch_set: "0"
+  port_no: " "
+  install_vnetip_driver: "Yes"
+  install_vnetip_open_driver: "Yes"
+  opkb_driver: "No"
+  his_rs_driver: "No"
+  his_ras_driver: "No"
+  organization: Yokogawa
+  clean_up_auto_deployment_files: "Yes"
+  execute_it_security: "No"
+
+au3_vp_preinstall:
+  title: YOKOGAWA CENTUM VP Setup
+  installer_title: YOKOGAWA products installer
+  install_button: "&Install"
+  ok_button: "&OK"
+  no_button: "&NO"
+  access_rights_ok_button: "OK"
+  execute_it_security: 'false'
+
+au3_vp_install:
+  title: YOKOGAWA CENTUM VP Setup
+  next_button: "&Next"
+  cs3k_top_title: YOKOGAWA CENTUM VP Setup
+  change_button: "&Change..."
+  install_button: "&Install"
+  finish_button: "&Finish"
+  delete_button: "&Remove"
+  ok_button: "&OK"
+  yes_button: "&YES"
+  no_button: "&NO"
+  opkb_port: " "
+  open_style_console: Open Style Console
+  solid_style_console: Solid Style Console
+  pc: General PC
+  upper_panel: Use upper part touch panel
+  lower_panel: Use lower part touch panel
+  not_execute_it_security: No. I want to install other software products.
+  reboot_later: No, I will restart my computer later.
+
+it_security:
+  model: standard
+  user_management: "{{ 'domain' if using_active_directory else 'standalone' }}"
+  it_security_version: "2.0"
+  title: IT Security Tool - Setup
+  next_button_caption: "Next"
+  confirm_settings_title: Confirm Setting Item
+  cancel_button_caption: "Cancel"
+  restart_now_button_caption: "Restart now"
+  finish_button_caption: "Finish"
+  dialog_title: IT Security Tool
+  dialog_yes_button_caption: "&Yes"
+  legacy: Legacy Model
+  standard: Standard Model
+  strengthened: Strengthened Model
+  standalone: Standalone Management
+  domain: Domain Management
+  combination: Combination Management
+  # path: '%ProgramFiles(x86)%\Yokogawa\IA\iPCS\Platform\SECURITY\PROGRAM\Yokogawa.IA.iPCS.Platform.Security.ITSecurityTool.exe'
+  path: '{{ win_local_sw_depot }}\CENTUM-VP\{{ ctmvp_revision }}\CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.ITSecurityTool.exe'
+  options: '/N /NM /R 3'
+  restart: "No"
+
+create_ctm_offuser_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.CreateOffuser.exe
+create_ctm_process_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.CreateCentumProcess.exe
+create_lic_process_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.License.CreateLicenseProcess.exe
+create_ads_process_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.ChronusENG.Security.CreateAdsProcess.exe
+create_ads_ciagent_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.ChronusENG.Security.CIM.CreateAdsAgent.exe
+
+# create_rds_process_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.CreateRDCProcess.exe
+# create_ugs_process_exe: CENTUM\SECURITY\Yokogawa.IA.iPCS.Platform.Security.CreateUgsProcess.exe
+# create_ykg_vnetip_user: CENTUM\security\ywvnetcreatevntuser.exe

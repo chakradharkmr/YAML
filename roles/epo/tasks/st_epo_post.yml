@@ -1,0 +1,199 @@
+---
+- name: Pause 60 seconds to allow ePO server to settle
+  ansible.builtin.pause:
+    seconds: 60
+
+- name: Execute Certificates_202305.bat
+  ansible.windows.win_command:
+    cmd: "{{ epo_depot }}\\Certificates_202305.bat"
+  changed_when: false
+
+- name: Remove ContentFeed Extension
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/remote/ext.uninstall?extension=contentfeed&force=true'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Display result of last api request
+  ansible.builtin.debug:
+    msg: '{{ win_api_call.content }}'
+
+- name: Pause 20 seconds to allow ePO server to finish processing the last api request
+  ansible.builtin.pause:
+    seconds: 20
+
+- name: Display result of last api request
+  ansible.builtin.debug:
+    msg: '{{ win_api_call.content }}'
+
+- name: Pause 20 seconds to allow ePO server to finish processing the last api request
+  ansible.builtin.pause:
+    seconds: 20
+
+- name: Import Yokogawa client tasks
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/clienttask.importClientTask?importFileName={{ epo_depot }}\Yokogawa_Advanced_task_{{ epo_version }}.xml'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Display result of last api request
+  ansible.builtin.debug:
+    msg: '{{ win_api_call.content }}'
+
+- name: Pause 20 seconds to allow ePO server to finish processing the last api request
+  ansible.builtin.pause:
+    seconds: 20
+
+# Loops over packages with 20 second pause between each loop
+- name: Check-in packages
+  ansible.windows.win_uri:
+    method: POST
+    url: '{{ item }}'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  loop:
+      # Check-in Certificates
+    - 'https://{{ ansible_host }}:8443/remote/repository.checkInPackage?packageLocation={{ epo_depot }}\CERTEEDK1000_202305.zip&branch=Current'
+      # Check-in Endpoint Security Platform client
+    - 'https://{{ ansible_host }}:8443/remote/repository.checkInPackage?packageLocation={{ epo_depot }}\Endpoint_Security_Platform_Client.zip&branch=Current'
+      # Check-in Threat Prevention client package
+    - 'https://{{ ansible_host }}:8443/remote/repository.checkInPackage?packageLocation={{ epo_depot }}\Threat_Prevention_Client.zip&branch=Current'
+      # Check-in DAT package
+    - 'https://{{ ansible_host }}:8443/remote/repository.checkInPackage?packageLocation={{ epo_depot }}\epov3_dat.zip&branch=Current'
+  loop_control:
+    pause: 20
+  register: win_api_call
+
+- name: Check-in Agent package
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/repository.checkInPackage?packageLocation={{ epo_depot }}\MA_WIN.zip&branch=Current'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Display result of last api request
+  ansible.builtin.debug:
+    msg: '{{ win_api_call.content }}'
+
+- name: Pause 30 seconds to allow ePO server to finish processing the last api request
+  ansible.builtin.pause:
+    seconds: 30
+
+- name: Generate node configuration file to import
+  ansible.windows.win_template:
+    src: systems.j2
+    dest: '{{ epo_depot }}\systems.txt'
+
+# Import of systems in system tree (branchNodeID 2 = "My Organization")
+- name: Import Systems
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/system.importSystem?fileName={{ epo_depot }}\systems.txt&branchNodeID=2'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Display result of last api request
+  ansible.builtin.debug:
+    msg: '{{ win_api_call.content }}'
+
+- name: Import Yokogawa policies
+  ansible.windows.win_uri:
+    method: POST
+    url: 'https://{{ ansible_host }}:8443/remote/policy.importPolicy?file={{ epo_depot }}\Yokogawa_Advanced_policy_{{ epo_version }}.xml&force=false'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  register: win_api_call
+
+- name: Pause 10 seconds to allow ePO server to finish processing the last api request
+  ansible.builtin.pause:
+    seconds: 10
+
+# Loops through the policies and applies them to the correct groups with a pause of 2 seconds between each loop.
+- name: Assign Yokogawa policies to groups
+  ansible.windows.win_uri:
+    method: POST
+    url: '{{ item }}'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    return_content: true
+  loop:
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=EPOAGENTMETA&objectId=37'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=EPOAGENTMETA&objectId=38'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=EPOAGENTMETA&objectId=39'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=EPOAGENTMETA&objectId=40'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=EPOAGENTMETA&objectId=41'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_GS_1000&objectId=42'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_AM_1000&objectId=43'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_AM_1000&objectId=45'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_AM_1000&objectId=46'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_AM_1000&objectId=47'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=5&productId=ENDP_AM_1000&objectId=48'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=EPOAGENTMETA&objectId=37'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=EPOAGENTMETA&objectId=38'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=EPOAGENTMETA&objectId=39'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=EPOAGENTMETA&objectId=40'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=EPOAGENTMETA&objectId=41'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_GS_1000&objectId=42'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_AM_1000&objectId=44'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_AM_1000&objectId=45'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_AM_1000&objectId=46'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_AM_1000&objectId=47'
+    - 'https://{{ ansible_host }}:8443/remote/policy.assignToGroup?groupId=6&productId=ENDP_AM_1000&objectId=48'
+  loop_control:
+    pause: 2
+  register: win_api_call
+# groupId 3 is Lost and Found
+# groupId 4 is GENERAL
+# groupId 5 is Yokogawa
+# groupId 6 is subgroup Yokogawa\Virtualization Platform
+
+# Showing an example of how to debug through the loop if necessary. Please note that output is not optimal (a lot of data)
+# - debug:
+#     msg: '{{ item.content }}'
+#   loop: '{{ win_api_call.results }}'
+
+# Loops through different EPO settings with a 2 second pause between each loop
+
+- name: Configure EPO Server to Yokogawa defaults
+  ansible.windows.win_uri:
+    method: POST
+    url: '{{ item }}'
+    url_username: '{{ epo_login_name }}'
+    url_password: '{{ epo_login_name_pw }}'
+    validate_certs: false
+    timeout: 60
+    return_content: true
+  loop:
+      # Disable 'Update Master Repository' server task
+    - 'https://{{ ansible_host }}:8443/remote/scheduler.updateServerTask?taskName=Update Master Repository&status=disabled'
+      # Disable 'Download Software Product List' server task
+    - 'https://{{ ansible_host }}:8443/remote/scheduler.updateServerTask?taskName=Download Software Product List&status=disabled'
+      # Disable 'LdapSync Sync across users from LDAP' server task
+    - 'https://{{ ansible_host }}:8443/remote/scheduler.updateServerTask?taskName=LdapSync: Sync across users from LDAP&status=disabled'
+  loop_control:
+    pause: 2
+  register: win_api_call
+
+- name: Downloading aftercare instructions to desktop
+  ansible.windows.win_copy:
+    src: README_epo.txt
+    dest: C:\Users\Public\Desktop

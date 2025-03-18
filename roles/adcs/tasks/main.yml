@@ -1,0 +1,129 @@
+---
+- name: Gathering Updated Facts
+  ansible.builtin.setup:
+
+- name: Install AD Certificate Services Features
+  ansible.windows.win_feature:
+    name:
+      - AD-Certificate
+      - ADCS-Cert-Authority
+      - ADCS-Web-Enrollment
+    state: present
+    include_management_tools: true
+
+- name: Setting up the CA
+  ansible.windows.win_shell: |
+      Install-AdcsCertificationAuthority -CAType EnterpriseRootCa -CryptoProviderName "RSA#Microsoft Software Key Storage Provider" `
+      -KeyLength 2048 -ValidityPeriod Years -ValidityPeriodUnits 12 -Force
+  register: ca_status
+  failed_when: >
+       ca_status.stderr_lines[0] is defined and
+       ca_status.stderr_lines[0] != 'Install-AdcsCertificationAuthority : The Certification Authority is already installed. If you are trying to reinstall '
+  changed_when: "ca_status.stderr_lines[0] is not defined"
+
+- name: Setting up CA Web Enrollment
+  ansible.windows.win_shell: |
+      Install-AdcsWebEnrollment -Force
+  register: caweb_status
+  failed_when: >
+       caweb_status.stderr_lines[0] is defined and
+       caweb_status.stderr_lines[0] != 'Install-AdcsWebEnrollment : The Certification Authority Web Enrollment role is already installed. If you are trying to '
+  changed_when: "caweb_status.stderr_lines[0] is not defined"
+  ignore_errors: true
+
+- name: Change default Certificate Validity
+  ansible.windows.win_regedit:
+    path: HKLM:\System\CurrentControlSet\Services\CertSvc\Configuration\{{ cert_name }}
+    name: ValidityPeriodUnits
+    data: 10
+    type: dword
+  register: certvalidity
+
+- name: Restart the Certificate Service if necessary
+  ansible.windows.win_service:
+    name: CertSvc
+    state: restarted
+  when: certvalidity.changed
+
+- name: Pause 30 seconds to wait for the Certificate Service
+  ansible.builtin.pause:
+    seconds: 30
+  when: certvalidity.changed
+
+- name: Download Powershell Module for ADCS templates
+  community.windows.win_robocopy:
+    src: \\{{ sw_src_path }}\ADCSTemplate
+    dest: C:\Program Files\WindowsPowerShell\Modules\ADCSTemplate
+    flags: /E
+
+- name: Import PSmodule ADCSTemplate
+  community.windows.win_psmodule:
+    name: ADCSTemplate
+    state: present
+
+- name: Import Certificate template with longer validity
+  ansible.windows.win_shell: |
+      New-ADCSTemplate -DisplayName 'Web Server OT' -JSON (Get-Content 'C:\Program Files\WindowsPowerShell\Modules\ADCSTemplate\webserverot.json' -Raw) -Publish
+  register: output
+  failed_when: >
+       output.stderr_lines[0] is defined and
+       output.stderr_lines[0] != 'New-ADObject : An attempt was made to add an object to the directory with a name that is already '
+  changed_when: false
+  become: true
+  vars:
+    ansible_become_method: runas
+    ansible_become_user: '{{ win_domain_admin }}'
+    ansible_become_pass: '{{ win_domain_admin_pw }}'
+
+- name: Create certs folder under PNSD folder
+  ansible.windows.win_file:
+    path: '{{ win_local_depot }}\PNSD\certs'
+    state: directory
+
+- name: Create cert_req_inf file from template
+  ansible.windows.win_template:
+    src: 'cert_req_inf.j2'
+    dest: '{{ win_local_depot }}\PNSD\certs\adcshttps.inf'
+
+- name: Check if Certificate Signing Request (CSR) exists
+  ansible.windows.win_stat:
+    path: '{{ win_local_depot }}\PNSD\certs\adcshttps.csr'
+  register: csr_info
+
+- name: 'Generate Certificate Signing Request (CSR)'
+  ansible.windows.win_command: 'certreq -f -new {{ win_local_depot }}\PNSD\certs\adcshttps.inf {{ win_local_depot }}\PNSD\certs\adcshttps.csr'
+  when: not csr_info.stat.exists
+  register: csr_created
+
+- name: Check if Certificate (CER) exists
+  ansible.windows.win_stat:
+    path: '{{ win_local_depot }}\PNSD\certs\adcshttps.cer'
+  register: cer_info
+
+- name: Signing the CSR and generating certificate
+  ansible.windows.win_command: certreq -f {{ config_parameter_1 }}{{ config_parameter_2 }} {{ submit_parameter }}
+  register: cmdout
+  when: not cer_info.stat.exists
+
+- name: Importing Certificate HTTPS Certificate
+  ansible.windows.win_certificate_store:
+    path: '{{ win_local_depot }}\PNSD\certs\adcshttps.cer'
+    store_location: LocalMachine
+    key_storage: machine
+    key_exportable: true
+    state: present
+  register: cert_import
+
+- name: Repair import cert in case private key is missing
+  ansible.windows.win_command: 'certutil -repairstore my "{{ cert_import.thumbprints[0] }}"'
+  when: cert_import.changed
+
+- name: Configure https binding
+  community.windows.win_iis_webbinding:
+    name: "Default Web Site"
+    protocol: 'https'
+    port: '443'
+    certificate_hash: '{{ cert_import.thumbprints[0] }}'
+
+- name: Harden Domain Controllers to use LDAPS
+  ansible.builtin.include_tasks: st_ldaps.yml

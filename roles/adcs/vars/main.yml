@@ -1,0 +1,16 @@
+---
+# C is for Country
+cert_c: NL
+# S is for State. Using NL still
+cert_s: NL
+# O is for Organization
+cert_o: Yokogawa
+# OU is organizational unit
+cert_ou: OT
+# l is for Location
+cert_l: Amersfoort
+
+cert_name: '{{ win_domain_name.split(".")[0] }}-{{ hostvars[groups["PDC"][0]]["inventory_hostname"] }}-CA'
+config_parameter_1: -config {{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}
+config_parameter_2: \{{ win_domain_name.split(".")[0] }}-{{ hostvars[groups['PDC'][0]]['inventory_hostname'] }}-CA
+submit_parameter: -submit {{ win_local_depot }}\PNSD\certs\adcshttps.csr {{ win_local_depot }}\PNSD\certs\adcshttps.cer

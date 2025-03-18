@@ -1,0 +1,116 @@
+---
+- name: Check if machine group policy file exists
+  ansible.windows.win_stat:
+    path: C:\windows\system32\GroupPolicy\Machine\Registry.pol
+  register: pol_file_info
+
+- name: Backup current group policy settings
+  ansible.windows.win_copy:
+    src: C:\windows\system32\GroupPolicy\Machine\Registry.pol
+    dest: C:\windows\system32\GroupPolicy\Machine\Registry.pol.org
+    remote_src: true
+  when: pol_file_info.stat.exists
+
+- name: Set Organization in registry
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion
+    name: RegisteredOrganization
+    data: '{{ centum_vp_install.organization }}'
+    type: string
+
+- name: Deploy installation bootstrap
+  ansible.windows.win_template:
+    src: ctmvp_install_bootstrap.cmd
+    dest: '{{ local_ctmvp_depot }}\ctmvp_install_bootstrap.cmd'
+
+- name: Deploy installation AutoIt script
+  ansible.windows.win_template:
+    src: ctmvp_install.au3
+    dest: '{{ local_ctmvp_depot }}\ctmvp_install.au3'
+
+- name: Set RunOnce in registry to execute the installaton bootstrapper at next reboot
+  ansible.windows.win_regedit:
+    path: HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce
+    name: ctmvp
+    data: '{{ local_ctmvp_depot }}\ctmvp_install_bootstrap.cmd'
+    type: string
+
+- name: Reboot
+  ansible.windows.win_reboot:
+    msg: Reboot by Y-dPloy to run CENTUM-VP installation at next boot
+
+- name: Create a test file on the target host
+  ansible.windows.win_file:
+    path: '{{ local_ctmvp_depot }}\y-dploy_connected.test'
+    state: touch
+
+- name: Wait for CENTUM-VP installation to start (times out after 5 minutes)
+  community.windows.win_wait_for_process:
+    process_name_exact: CENTUMSetup
+    state: present
+    timeout: 300
+    sleep: 5
+
+- name: Wait for CENTUM-VP installation to stop (times out after 30 minutes)
+  community.windows.win_wait_for_process:
+    process_name_exact: CENTUMSetup
+    state: absent
+    timeout: 1800
+
+- name: Check if installation log is in AppData Temp folder (Applicable when CENTUM-VP <= 6.09)
+  ansible.windows.win_stat:
+    path: C:\Users\{{ ansible_user }}\AppData\Local\Temp\InstLogMSI_VP.txt
+  register: install_log_usertemp_present
+
+- name: Check if installation log is in Windows Temp folder (Applicable when CENTUM-VP >= 6.09)
+  ansible.windows.win_stat:
+    path: C:\Windows\Temp\InstLogMSI_VP.txt
+  register: install_log_windowstemp_present
+
+- name: Checking installation logs for CENTUM-VP <= 6.09
+  when: install_log_usertemp_present.stat.exists
+  block:
+    - name: Wait until [Installation completed successfully] is in the log file before continuing [standalone] for CENTUM-VP <= 6.09
+      ansible.windows.win_wait_for:
+        path: C:\Users\{{ ansible_user }}\AppData\Local\Temp\InstLogMSI_VP.txt
+        regex: Installation completed successfully
+        state: present
+        timeout: 200
+        sleep: 5
+      when: it_security.user_management == 'standalone'
+
+    - name: Wait until [Installation completed successfully] is in the log file before continuing [domain] for CENTUM-VP <= 6.09
+      ansible.windows.win_wait_for:
+        path: C:\Users\{{ win_domain_yokoadmin }}\AppData\Local\Temp\InstLogMSI_VP.txt
+        regex: Installation completed successfully
+        state: present
+        timeout: 300
+        sleep: 5
+      when: it_security.user_management == 'domain' or it_security.user_management == 'combination'
+  # block end
+
+- name: Wait until [Installation completed successfully] is in the log file before continuing [standalone] for CENTUM-VP >= 6.09
+  ansible.windows.win_wait_for:
+    path: C:\Windows\Temp\InstLogMSI_VP.txt
+    regex: Installation completed successfully
+    state: present
+    timeout: 200
+    sleep: 5
+  when: install_log_windowstemp_present.stat.exists
+
+- name: Create application shortcut for bkhbos.exe
+  community.windows.win_shortcut:
+    description: Start CENTUM-VP HIS Functions
+    src: C:\CENTUMVP\program\BKHBos.exe
+    dest: 'C:\Users\Public\Desktop\Start HIS.lnk'
+
+- name: Setting registry keys for RAID notification in system alarms
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Wow6432Node\YOKOGAWA\CS3K\HIS\RAIDMON
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    type: '{{ item.type }}'
+  loop:
+    - { name: Log1, data: System, type: string}
+    - { name: Source1, data: 'Server Administrator', type: string}
+    - { name: ID1, data: '2048', type: dword}

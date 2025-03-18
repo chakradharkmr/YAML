@@ -1,0 +1,8 @@
+Lost&Found\
+{% for general_host in groups['GENERAL'] %}
+GENERAL\{{ general_host }}
+{% endfor %}
+{% for yokogawa_host in groups['YOKOGAWA'] %}
+YOKOGAWA\{{ yokogawa_host }}
+{% endfor %}
+YOKOGAWA\Virtualization Platform\

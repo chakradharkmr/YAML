@@ -1,0 +1,12 @@
+---
+sql_instance: "{{ epo_sql_instance }}"
+sql_inst_tcp_port: "{{ epo_sql_inst_tcp_port }}"
+sql_sysadmin_acc: "{{ epo_sql_sysadmin }}"
+sql_sysadmin_acc_pw: "{{ epo_sql_sysadmin_pw }}"
+
+epo_install_dir: C:\Program Files (x86)\Trellix\ePolicy Orchestrator
+epo_version: 20240109
+epo_agent_version: 579
+epo_main_install_folder: 'EPO5100_with_SP1'
+epo_main_install_guid: '{E2C3579A-6B3B-40F6-88E8-BE08E78C8D1A}'
+epo_depot: '{{ win_local_sw_depot }}\ePO_Yokogawa_Advanced\{{ epo_version }}'

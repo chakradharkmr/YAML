@@ -1,0 +1,6 @@
+---
+- name: Example test
+  hosts: localhost
+  remote_user: root
+  roles:
+    - a_ansible_galaxy_template
